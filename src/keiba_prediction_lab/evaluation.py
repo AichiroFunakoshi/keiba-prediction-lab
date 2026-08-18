@@ -14,6 +14,8 @@ class FixedStakeSummary:
     return_rate: float
     return_rate_without_largest_hit: float
     largest_hit_share: float
+    top3_hit_share: float
+    top5_hit_share: float
 
 
 def evaluate_fixed_stake(
@@ -32,6 +34,10 @@ def evaluate_fixed_stake(
     total_stake = tickets * stake_per_ticket_yen
     total_return = sum(payouts)
     largest_hit = max(payouts, default=0)
+    payouts_descending = sorted((payout for payout in payouts if payout > 0), reverse=True)
+
+    def payout_share(count: int) -> float:
+        return sum(payouts_descending[:count]) / total_return if total_return else 0.0
 
     return FixedStakeSummary(
         tickets=tickets,
@@ -44,4 +50,6 @@ def evaluate_fixed_stake(
         if total_stake
         else 0.0,
         largest_hit_share=largest_hit / total_return if total_return else 0.0,
+        top3_hit_share=payout_share(3),
+        top5_hit_share=payout_share(5),
     )

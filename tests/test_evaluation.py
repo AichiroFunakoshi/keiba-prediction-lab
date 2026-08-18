@@ -15,6 +15,8 @@ class FixedStakeEvaluationTest(unittest.TestCase):
         self.assertAlmostEqual(summary.return_rate, 4.8)
         self.assertAlmostEqual(summary.return_rate_without_largest_hit, 0.675)
         self.assertAlmostEqual(summary.largest_hit_share, 1650 / 1920)
+        self.assertAlmostEqual(summary.top3_hit_share, 1.0)
+        self.assertAlmostEqual(summary.top5_hit_share, 1.0)
 
     def test_stake_cannot_be_optimized(self) -> None:
         with self.assertRaisesRegex(ValueError, "fixed at 100 yen"):
