@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "last_reviewed": "2026-08-18",
+  "sources": [
+    {
+      "source_id": "synthetic-fixtures",
+      "name": "Project synthetic test fixtures",
+      "homepage": "https://github.com/AichiroFunakoshi/keiba-prediction-lab",
+      "scope": "synthetic",
+      "declared_license": "MIT",
+      "provenance": "Generated manually for this repository; no real horse or race data.",
+      "redistribution": "allowed",
+      "status": "approved",
+      "reason": "Safe for tests and examples, but not suitable for model training."
+    },
+    {
+      "source_id": "kaggle-takamotoki-jra",
+      "name": "JRA Horse Racing Dataset by takamotoki",
+      "homepage": "https://www.kaggle.com/datasets/takamotoki/jra-horse-racing-dataset",
+      "scope": "JRA 1986-2021",
+      "declared_license": "CC BY 4.0",
+      "provenance": "Dataset description states that records were scraped from netkeiba.com.",
+      "redistribution": "unclear",
+      "status": "review_required",
+      "reason": "The Kaggle license is explicit, but authority to license the scraped source data has not been established."
+    },
+    {
+      "source_id": "huggingface-kblueleaf-jp-racing-horse",
+      "name": "KBlueLeaf/jp-racing-horse",
+      "homepage": "https://huggingface.co/datasets/KBlueLeaf/jp-racing-horse",
+      "scope": "Japanese racing SQLite databases, 1990-2025",
+      "declared_license": "Apache-2.0",
+      "provenance": "Dataset card contains only the license declaration and does not identify the original data source or collection method.",
+      "redistribution": "unclear",
+      "status": "review_required",
+      "reason": "A repository license alone does not establish provenance or permission for the database contents."
+    },
+    {
+      "source_id": "nar-official-download",
+      "name": "地方競馬情報サイト データダウンロード",
+      "homepage": "https://www.keiba.go.jp/KeibaWeb/DataRoom/DataDownload",
+      "scope": "NAR race information from 1998; odds from 2026-03",
+      "declared_license": "Official terms; no open-data license identified",
+      "provenance": "CSV and ZIP files published by the National Association of Racing official site.",
+      "redistribution": "unclear",
+      "status": "review_required",
+      "reason": "Strong official provenance, but it covers local racing rather than JRA and redistribution permission needs confirmation."
+    }
+  ]
+}

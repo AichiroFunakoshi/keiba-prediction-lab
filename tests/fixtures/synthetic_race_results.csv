@@ -1,0 +1,4 @@
+race_id,race_date,race_number,venue,horse_id,horse_name,post_position,finish_position,result_status,final_odds
+synthetic-2026-01,2026-01-01,1,TEST,H001,Alpha,1,1,finished,2.7
+synthetic-2026-01,2026-01-01,1,TEST,H002,Beta,2,2,finished,3.2
+synthetic-2026-01,2026-01-01,1,TEST,H003,Gamma,3,,scratched,

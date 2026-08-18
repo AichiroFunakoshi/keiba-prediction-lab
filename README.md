@@ -19,7 +19,7 @@
 
 ## 現在の段階
 
-ロードマップの段階1まで完了しています。予測・結果・馬券の共通データ契約、100円固定評価、基本的な確率評価指標を収録しています。次は、無料データセットの出所・ライセンス・時点整合性を監査してから取込機能を追加します。
+ロードマップの段階1まで完了し、段階2を進めています。無料データ候補の監査台帳、ファイルハッシュ、CSV品質検査、未来情報を特徴量から除外するゲートを収録しています。現時点で実データ源は未承認のため、テストには合成データだけを使用します。
 
 ## 開発環境
 
@@ -31,6 +31,15 @@ python -m venv .venv
 source .venv/bin/activate
 python -m unittest discover -s tests
 ```
+
+データ候補の判定と、ローカルCSVの品質を確認できます。
+
+```bash
+PYTHONPATH=src python -m keiba_prediction_lab.cli list-sources
+PYTHONPATH=src python -m keiba_prediction_lab.cli audit-csv tests/fixtures/synthetic_race_results.csv
+```
+
+CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、日付・着順の異常をJSONで出力します。
 
 ## 公開データに関する方針
 

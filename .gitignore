@@ -13,6 +13,7 @@ build/
 # Real race data and generated artifacts are not published by default.
 data/*
 !data/README.md
+!data/sources.json
 models/
 artifacts/
 reports/generated/
