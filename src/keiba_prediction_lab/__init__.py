@@ -1,5 +1,13 @@
 """Evaluation tools for reproducible horse-racing prediction research."""
 
+from .baselines import (
+    BaselineRunner,
+    BaselineScore,
+    UniformBaseline,
+    evaluate_baseline_predictions,
+    horse_history_baseline,
+    post_position_baseline,
+)
 from .domain import (
     BetType,
     PredictionRecord,
@@ -27,6 +35,8 @@ from .metrics import (
 )
 
 __all__ = [
+    "BaselineRunner",
+    "BaselineScore",
     "BetType",
     "ColumnAvailability",
     "CsvAuditReport",
@@ -36,13 +46,17 @@ __all__ = [
     "RedistributionStatus",
     "ResultRecord",
     "TicketResult",
+    "UniformBaseline",
     "SourceStatus",
     "assert_pre_race_features",
     "audit_standard_csv",
     "binary_brier_score",
     "binary_log_loss",
     "evaluate_fixed_stake",
+    "evaluate_baseline_predictions",
+    "horse_history_baseline",
     "load_source_registry",
+    "post_position_baseline",
     "sha256_file",
     "top1_accuracy",
     "top3_unordered_accuracy",
