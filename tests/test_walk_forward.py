@@ -10,11 +10,13 @@ UTC = timezone.utc
 START = datetime(2026, 1, 1, tzinfo=UTC)
 
 
-def feature(race_id: str, horse: int, observed_at: datetime, strength: float) -> FeatureRow:
+def feature(
+    race_id: str, horse: int, observed_at: datetime, strength: float, venue: str
+) -> FeatureRow:
     return FeatureRow(
         race_id, f"{race_id}-horse-{horse}", observed_at, "mile", horse, 56.0,
         480, 21, 10, strength, min(1.0, strength + 0.2), 5, strength,
-        8, strength, 4, strength, 6, strength, 100, strength, 100, strength,
+        8, strength, 4, strength, 6, strength, 100, strength, 100, strength, venue,
     )
 
 
@@ -25,7 +27,11 @@ def labeled_rows() -> tuple[TrainingRow, ...]:
         observed_at = START + timedelta(days=race_number)
         for horse, strength in enumerate((0.8, 0.35, 0.2, 0.1), start=1):
             rows.append(TrainingRow(
-                feature(race_id, horse, observed_at, strength), horse
+                feature(
+                    race_id, horse, observed_at, strength,
+                    "Tokyo" if race_number % 2 == 0 else "Kyoto",
+                ),
+                horse,
             ))
     return tuple(rows)
 
@@ -61,6 +67,10 @@ class WalkForwardTest(unittest.TestCase):
             result.aggregate_uniform_score.win_brier_score,
         )
         self.assertGreater(len(result.calibration.bins), 0)
+        self.assertEqual(
+            {item.dimension for item in result.diagnostics.segments},
+            {"venue", "distance_band", "field_size", "confidence"},
+        )
 
     def test_is_deterministic(self) -> None:
         self.assertEqual(
