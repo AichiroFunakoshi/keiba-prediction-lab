@@ -27,6 +27,14 @@ from .data_audit import (
     sha256_file,
 )
 from .evaluation import FixedStakeSummary, evaluate_fixed_stake
+from .features import (
+    FeatureRow,
+    RacePerformance,
+    Surface,
+    TargetRunner,
+    distance_band,
+    generate_features,
+)
 from .metrics import (
     binary_brier_score,
     binary_log_loss,
@@ -42,9 +50,13 @@ __all__ = [
     "CsvAuditReport",
     "DataSource",
     "FixedStakeSummary",
+    "FeatureRow",
     "PredictionRecord",
     "RedistributionStatus",
     "ResultRecord",
+    "RacePerformance",
+    "Surface",
+    "TargetRunner",
     "TicketResult",
     "UniformBaseline",
     "SourceStatus",
@@ -53,6 +65,8 @@ __all__ = [
     "binary_brier_score",
     "binary_log_loss",
     "evaluate_fixed_stake",
+    "distance_band",
+    "generate_features",
     "evaluate_baseline_predictions",
     "horse_history_baseline",
     "load_source_registry",
