@@ -8,6 +8,12 @@ from .baselines import (
     horse_history_baseline,
     post_position_baseline,
 )
+from .calibration import (
+    CalibrationRow,
+    TemperatureCalibratedModel,
+    fit_temperature_scaling,
+    temperature_scale_predictions,
+)
 from .domain import (
     BetType,
     PredictionRecord,
@@ -36,8 +42,11 @@ from .features import (
     generate_features,
 )
 from .metrics import (
+    CalibrationBin,
+    CalibrationSummary,
     binary_brier_score,
     binary_log_loss,
+    calibration_summary,
     top1_accuracy,
     top3_unordered_accuracy,
 )
@@ -47,6 +56,9 @@ __all__ = [
     "BaselineRunner",
     "BaselineScore",
     "BetType",
+    "CalibrationBin",
+    "CalibrationRow",
+    "CalibrationSummary",
     "ColumnAvailability",
     "ConditionalLogitModel",
     "CsvAuditReport",
@@ -59,6 +71,7 @@ __all__ = [
     "RacePerformance",
     "Surface",
     "TargetRunner",
+    "TemperatureCalibratedModel",
     "TicketResult",
     "TrainingRow",
     "UniformBaseline",
@@ -67,10 +80,12 @@ __all__ = [
     "audit_standard_csv",
     "binary_brier_score",
     "binary_log_loss",
+    "calibration_summary",
     "evaluate_fixed_stake",
     "distance_band",
     "generate_features",
     "fit_conditional_logit",
+    "fit_temperature_scaling",
     "evaluate_baseline_predictions",
     "horse_history_baseline",
     "load_source_registry",
@@ -78,5 +93,6 @@ __all__ = [
     "sha256_file",
     "top1_accuracy",
     "top3_unordered_accuracy",
+    "temperature_scale_predictions",
     "validate_race_predictions",
 ]
