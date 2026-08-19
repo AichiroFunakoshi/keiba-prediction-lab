@@ -51,6 +51,12 @@ from .metrics import (
     top3_unordered_accuracy,
 )
 from .model import ConditionalLogitModel, TrainingRow, fit_conditional_logit
+from .walk_forward import (
+    WalkForwardFoldResult,
+    WalkForwardResult,
+    WalkForwardWindow,
+    run_walk_forward,
+)
 
 __all__ = [
     "BaselineRunner",
@@ -75,6 +81,9 @@ __all__ = [
     "TicketResult",
     "TrainingRow",
     "UniformBaseline",
+    "WalkForwardFoldResult",
+    "WalkForwardResult",
+    "WalkForwardWindow",
     "SourceStatus",
     "assert_pre_race_features",
     "audit_standard_csv",
@@ -90,6 +99,7 @@ __all__ = [
     "horse_history_baseline",
     "load_source_registry",
     "post_position_baseline",
+    "run_walk_forward",
     "sha256_file",
     "top1_accuracy",
     "top3_unordered_accuracy",
