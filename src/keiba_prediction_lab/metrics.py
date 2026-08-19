@@ -2,6 +2,22 @@
 
 import math
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class CalibrationBin:
+    lower_bound: float
+    upper_bound: float
+    count: int
+    mean_probability: float
+    observed_rate: float
+
+
+@dataclass(frozen=True)
+class CalibrationSummary:
+    bins: tuple[CalibrationBin, ...]
+    expected_calibration_error: float
 
 
 def _validated_binary_inputs(
@@ -49,6 +65,41 @@ def binary_log_loss(
             -(outcome * math.log(clipped) + (1 - outcome) * math.log(1 - clipped))
         )
     return sum(losses) / len(losses)
+
+
+def calibration_summary(
+    probabilities: Iterable[float], outcomes: Iterable[int], *, bin_count: int = 10
+) -> CalibrationSummary:
+    """Return non-empty reliability bins and expected calibration error."""
+    if bin_count < 1:
+        raise ValueError("bin_count must be positive")
+    probability_values, outcome_values = _validated_binary_inputs(
+        probabilities, outcomes
+    )
+    grouped: list[list[tuple[float, int]]] = [[] for _ in range(bin_count)]
+    for probability, outcome in zip(probability_values, outcome_values):
+        index = min(int(probability * bin_count), bin_count - 1)
+        grouped[index].append((probability, outcome))
+
+    bins = []
+    weighted_error = 0.0
+    for index, values in enumerate(grouped):
+        if not values:
+            continue
+        mean_probability = sum(value[0] for value in values) / len(values)
+        observed_rate = sum(value[1] for value in values) / len(values)
+        weighted_error += len(values) * abs(mean_probability - observed_rate)
+        bins.append(CalibrationBin(
+            lower_bound=index / bin_count,
+            upper_bound=(index + 1) / bin_count,
+            count=len(values),
+            mean_probability=mean_probability,
+            observed_rate=observed_rate,
+        ))
+    return CalibrationSummary(
+        bins=tuple(bins),
+        expected_calibration_error=weighted_error / len(probability_values),
+    )
 
 
 def top1_accuracy(

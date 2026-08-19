@@ -4,6 +4,7 @@ import unittest
 from keiba_prediction_lab.metrics import (
     binary_brier_score,
     binary_log_loss,
+    calibration_summary,
     top1_accuracy,
     top3_unordered_accuracy,
 )
@@ -20,6 +21,18 @@ class PredictionMetricsTest(unittest.TestCase):
     def test_binary_metrics_reject_mismatched_lengths(self) -> None:
         with self.assertRaisesRegex(ValueError, "equal length"):
             binary_brier_score([0.8], [1, 0])
+
+    def test_calibration_summary_reports_bins_and_ece(self) -> None:
+        summary = calibration_summary([0.1, 0.2, 0.8, 0.9], [0, 0, 1, 0], bin_count=2)
+
+        self.assertEqual([item.count for item in summary.bins], [2, 2])
+        self.assertAlmostEqual(summary.bins[0].mean_probability, 0.15)
+        self.assertAlmostEqual(summary.bins[1].observed_rate, 0.5)
+        self.assertAlmostEqual(summary.expected_calibration_error, 0.25)
+
+    def test_calibration_summary_rejects_invalid_bin_count(self) -> None:
+        with self.assertRaisesRegex(ValueError, "positive"):
+            calibration_summary([0.5], [1], bin_count=0)
 
     def test_top1_accuracy(self) -> None:
         self.assertAlmostEqual(

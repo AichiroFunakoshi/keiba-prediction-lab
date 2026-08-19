@@ -133,7 +133,7 @@ def _top3_probabilities(weights: Sequence[float]) -> list[float]:
                 probabilities[first] += probability
                 probabilities[second] += probability
                 probabilities[third] += probability
-    return probabilities
+    return [min(max(value, 0.0), 1.0) for value in probabilities]
 
 
 @dataclass(frozen=True)
