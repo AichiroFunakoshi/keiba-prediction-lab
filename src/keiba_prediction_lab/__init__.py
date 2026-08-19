@@ -41,12 +41,14 @@ from .metrics import (
     top1_accuracy,
     top3_unordered_accuracy,
 )
+from .model import ConditionalLogitModel, TrainingRow, fit_conditional_logit
 
 __all__ = [
     "BaselineRunner",
     "BaselineScore",
     "BetType",
     "ColumnAvailability",
+    "ConditionalLogitModel",
     "CsvAuditReport",
     "DataSource",
     "FixedStakeSummary",
@@ -58,6 +60,7 @@ __all__ = [
     "Surface",
     "TargetRunner",
     "TicketResult",
+    "TrainingRow",
     "UniformBaseline",
     "SourceStatus",
     "assert_pre_race_features",
@@ -67,6 +70,7 @@ __all__ = [
     "evaluate_fixed_stake",
     "distance_band",
     "generate_features",
+    "fit_conditional_logit",
     "evaluate_baseline_predictions",
     "horse_history_baseline",
     "load_source_registry",
