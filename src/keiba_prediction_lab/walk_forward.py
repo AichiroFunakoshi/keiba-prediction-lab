@@ -13,6 +13,8 @@ from .baselines import (
 )
 from .calibration import CalibrationRow, fit_temperature_scaling
 from .domain import PredictionRecord, ResultRecord
+from .diagnostics import DiagnosticReport, diagnose_segments
+from .features import FeatureRow
 from .metrics import CalibrationSummary, calibration_summary
 from .model import TrainingRow, fit_conditional_logit
 
@@ -49,6 +51,7 @@ class WalkForwardResult:
     aggregate_model_score: BaselineScore
     aggregate_uniform_score: BaselineScore
     calibration: CalibrationSummary
+    diagnostics: DiagnosticReport
 
 
 def _group_rows(rows: Sequence[TrainingRow]) -> dict[str, list[TrainingRow]]:
@@ -99,6 +102,7 @@ def run_walk_forward(
     all_model_predictions: list[PredictionRecord] = []
     all_uniform_predictions: list[PredictionRecord] = []
     all_results: list[ResultRecord] = []
+    all_features: list[FeatureRow] = []
 
     for window in windows:
         training = [race for race in ordered_races if _race_time(race) <= window.train_end]
@@ -171,6 +175,11 @@ def run_walk_forward(
         all_model_predictions.extend(fold_model_predictions)
         all_uniform_predictions.extend(fold_uniform_predictions)
         all_results.extend(fold_results_rows)
+        all_features.extend(
+            row.features for race in evaluation for row in sorted(
+                race, key=lambda item: item.features.post_position
+            )
+        )
 
     outcomes = [int(result.finish_position == 1) for result in all_results]
     return WalkForwardResult(
@@ -184,5 +193,11 @@ def run_walk_forward(
         calibration=calibration_summary(
             [prediction.win_probability for prediction in all_model_predictions],
             outcomes,
+        ),
+        diagnostics=diagnose_segments(
+            all_model_predictions,
+            all_uniform_predictions,
+            all_results,
+            all_features,
         ),
     )

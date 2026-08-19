@@ -146,6 +146,7 @@ class FeatureRow:
     jockey_win_rate: float
     trainer_starts: int
     trainer_win_rate: float
+    venue: str = "unknown"
 
 
 @dataclass
@@ -279,5 +280,6 @@ def generate_features(
             jockey_win_rate=win_rate(jockey),
             trainer_starts=trainer.starts,
             trainer_win_rate=win_rate(trainer),
+            venue=runner.venue,
         ))
     return tuple(rows)
