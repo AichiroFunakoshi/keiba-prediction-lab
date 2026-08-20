@@ -56,6 +56,8 @@ class FrozenPrediction:
         selections = [ticket.selection for ticket in self.trifecta_tickets]
         if len(set(selections)) != len(selections):
             raise ValueError("trifecta tickets must be unique")
+        if len(self.trifecta_tickets) > 1:
+            raise ValueError("actual trifecta purchase candidate must be limited to one ticket")
         if self.trifecta_tickets:
             predicted_winner = min(
                 self.predictions, key=lambda row: row.predicted_rank
