@@ -67,7 +67,10 @@ def freeze_shadow_forecast(
     model_versions = {row.model_version for row in predictions}
     if len(predicted_times) != 1 or len(model_versions) != 1:
         raise ValueError("source predictions must share predicted_at and model_version")
-    return FrozenShadowForecast(
+    return freeze_built_shadow_forecast(
+        build_trifecta_forecast(
+            predictions, portfolio_sizes=portfolio_sizes
+        ),
         scheduled_at=scheduled_at,
         frozen_at=frozen_at,
         source_predicted_at=next(iter(predicted_times)),
@@ -75,9 +78,30 @@ def freeze_shadow_forecast(
         input_data_version=input_data_version,
         model_version=next(iter(model_versions)),
         generator_version=generator_version,
-        forecast=build_trifecta_forecast(
-            predictions, portfolio_sizes=portfolio_sizes
-        ),
+    )
+
+
+def freeze_built_shadow_forecast(
+    forecast: TrifectaForecast,
+    *,
+    scheduled_at: datetime,
+    frozen_at: datetime,
+    source_predicted_at: datetime,
+    phase: PredictionPhase,
+    input_data_version: str,
+    model_version: str,
+    generator_version: str,
+) -> FrozenShadowForecast:
+    """Freeze a forecast produced by any versioned trifecta generator."""
+    return FrozenShadowForecast(
+        scheduled_at=scheduled_at,
+        frozen_at=frozen_at,
+        source_predicted_at=source_predicted_at,
+        phase=phase,
+        input_data_version=input_data_version,
+        model_version=model_version,
+        generator_version=generator_version,
+        forecast=forecast,
     )
 
 

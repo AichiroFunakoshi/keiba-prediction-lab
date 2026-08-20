@@ -55,6 +55,7 @@ CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、�
 時系列検証の定義は [docs/WALK_FORWARD.md](docs/WALK_FORWARD.md) を参照してください。
 予想固定とレポートの定義は [docs/FROZEN_PREDICTIONS.md](docs/FROZEN_PREDICTIONS.md) を参照してください。
 三連単の条件付き確率と影の評価は [docs/TRIFECTA_PORTFOLIOS.md](docs/TRIFECTA_PORTFOLIOS.md) を参照してください。
+脚質と想定ペースを使う第2基準線は [docs/PACE_MODEL.md](docs/PACE_MODEL.md) を参照してください。
 
 ## ライセンス
 
