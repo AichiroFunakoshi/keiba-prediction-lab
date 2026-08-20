@@ -81,6 +81,14 @@ class FrozenPredictionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "predicted winner"):
             replace(snapshot(), trifecta_tickets=invalid)
 
+    def test_actual_purchase_candidate_is_limited_to_one_ticket(self) -> None:
+        tickets = (
+            FrozenTrifectaTicket(("horse-1", "horse-2", "horse-3")),
+            FrozenTrifectaTicket(("horse-1", "horse-3", "horse-2")),
+        )
+        with self.assertRaisesRegex(ValueError, "limited to one ticket"):
+            replace(snapshot(), trifecta_tickets=tickets)
+
     def test_report_is_reproducible_and_separates_phase(self) -> None:
         snapshots = (
             snapshot("race-1", PredictionPhase.PRE_ODDS),
