@@ -147,6 +147,28 @@ def build_trifecta_forecast(
     portfolio_sizes: Sequence[int] = DEFAULT_PORTFOLIO_SIZES,
 ) -> TrifectaForecast:
     combinations = rank_trifecta_combinations(predictions)
+    return build_trifecta_forecast_from_combinations(
+        predictions, combinations, portfolio_sizes=portfolio_sizes
+    )
+
+
+def build_trifecta_forecast_from_combinations(
+    predictions: Sequence[PredictionRecord],
+    combinations: Sequence[TrifectaCombination],
+    *,
+    portfolio_sizes: Sequence[int] = DEFAULT_PORTFOLIO_SIZES,
+) -> TrifectaForecast:
+    """Build nested portfolios from an externally ranked joint distribution."""
+    if not predictions or not combinations:
+        raise ValueError("predictions and trifecta combinations are required")
+    combinations = tuple(combinations)
+    if len({row.selection for row in combinations}) != len(combinations):
+        raise ValueError("trifecta combinations must be unique")
+    if abs(sum(row.probability for row in combinations) - 1.0) > 1e-8:
+        raise ValueError("trifecta combination probabilities must sum to 1")
+    combinations = tuple(sorted(
+        combinations, key=lambda row: (-row.probability, row.selection)
+    ))
     sizes = tuple(portfolio_sizes)
     if not sizes or any(size < 1 for size in sizes):
         raise ValueError("portfolio sizes must be positive")
