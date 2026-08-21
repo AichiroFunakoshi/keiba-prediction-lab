@@ -5,10 +5,9 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
-from .bet_type_forecast import load_frozen_bet_type_forecast
-from .bet_type_settlement import (
-    evaluate_frozen_bet_type_candidates,
-    load_bet_type_race_payouts,
+from .bet_type_report import (
+    evaluate_bet_type_race_directories,
+    save_bet_type_evaluation_artifact,
 )
 from .data_audit import audit_standard_csv, load_source_registry
 
@@ -38,6 +37,11 @@ def _build_parser() -> argparse.ArgumentParser:
             "bet-types-payouts.json"
         ),
     )
+    evaluate.add_argument(
+        "--report",
+        type=Path,
+        help="save an integrity-protected structured evaluation JSON",
+    )
     return parser
 
 
@@ -59,18 +63,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "evaluate-bet-types":
-        snapshots = tuple(
-            load_frozen_bet_type_forecast(path / "bet-types-shadow.json")
-            for path in args.race_directories
+        artifact = evaluate_bet_type_race_directories(
+            tuple(args.race_directories)
         )
-        payouts = tuple(
-            load_bet_type_race_payouts(path / "bet-types-payouts.json")
-            for path in args.race_directories
-        )
-        print(
-            evaluate_frozen_bet_type_candidates(snapshots, payouts).to_markdown(),
-            end="",
-        )
+        if args.report is not None:
+            save_bet_type_evaluation_artifact(artifact, args.report)
+        print(artifact.to_markdown(), end="")
         return 0
 
     report = audit_standard_csv(args.path)
