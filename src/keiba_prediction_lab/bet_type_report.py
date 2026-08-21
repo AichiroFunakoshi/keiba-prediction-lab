@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -22,8 +23,9 @@ from .evaluation import (
 )
 
 
-BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION = "1.1"
-_LEGACY_SCHEMA_VERSION = "1.0"
+BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION = "1.2"
+_LEGACY_SCHEMA_VERSION_WITHOUT_TICKETS = "1.0"
+_LEGACY_SCHEMA_VERSION_WITHOUT_RACE_DATES = "1.1"
 _SHA256_LENGTH = 64
 _UNORDERED_BET_TYPES = frozenset((BetType.QUINELLA, BetType.TRIO))
 
@@ -41,6 +43,7 @@ class BetTypeEvaluationInput:
     race_id: str
     forecast_file_sha256: str
     payout_file_sha256: str
+    race_date: date | None = None
 
     def __post_init__(self) -> None:
         if not self.race_id.strip():
@@ -49,6 +52,8 @@ class BetTypeEvaluationInput:
             raise ValueError("forecast_file_sha256 must be lowercase SHA-256")
         if not _is_sha256(self.payout_file_sha256):
             raise ValueError("payout_file_sha256 must be lowercase SHA-256")
+        if self.race_date is not None and type(self.race_date) is not date:
+            raise ValueError("race_date must be a date")
 
 
 @dataclass(frozen=True)
@@ -202,8 +207,13 @@ def evaluate_bet_type_race_directories(
 
     loaded.sort(key=lambda row: row[0])
     inputs = tuple(
-        BetTypeEvaluationInput(race_id, forecast_hash, payout_hash)
-        for race_id, _, _, forecast_hash, payout_hash in loaded
+        BetTypeEvaluationInput(
+            race_id,
+            forecast_hash,
+            payout_hash,
+            snapshot.scheduled_at.date(),
+        )
+        for race_id, snapshot, _, forecast_hash, payout_hash in loaded
     )
     tickets = tuple(
         ticket
@@ -239,6 +249,7 @@ def _payload(artifact: BetTypeEvaluationArtifact) -> dict[str, object]:
                 "race_id": row.race_id,
                 "forecast_file_sha256": row.forecast_file_sha256,
                 "payout_file_sha256": row.payout_file_sha256,
+                "race_date": row.race_date.isoformat() if row.race_date else None,
             }
             for row in artifact.inputs
         ],
@@ -270,6 +281,8 @@ def save_bet_type_evaluation_artifact(
     """Save one integrity-protected evaluation artifact without overwriting."""
     if not artifact.tickets:
         raise ValueError("new evaluation artifacts must contain a ticket ledger")
+    if any(row.race_date is None for row in artifact.inputs):
+        raise ValueError("new evaluation artifacts must contain every race_date")
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = _payload(artifact)
@@ -334,10 +347,12 @@ def load_bet_type_evaluation_artifact(
     if not isinstance(envelope, dict):
         raise ValueError("bet type evaluation envelope must be an object")
     schema_version = envelope.get("schema_version")
-    if schema_version not in (
-        _LEGACY_SCHEMA_VERSION,
+    supported_versions = (
+        _LEGACY_SCHEMA_VERSION_WITHOUT_TICKETS,
+        _LEGACY_SCHEMA_VERSION_WITHOUT_RACE_DATES,
         BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION,
-    ):
+    )
+    if schema_version not in supported_versions:
         raise ValueError("unsupported bet type evaluation schema_version")
     payload = envelope.get("payload")
     if not isinstance(payload, dict):
@@ -357,21 +372,33 @@ def load_bet_type_evaluation_artifact(
     if any(not isinstance(row, dict) for row in summary_payloads):
         raise ValueError("each evaluation summary must be an object")
 
-    inputs = tuple(
-        BetTypeEvaluationInput(
-            race_id=_required(row, "race_id", str),
-            forecast_file_sha256=_required(
-                row, "forecast_file_sha256", str
-            ),
-            payout_file_sha256=_required(row, "payout_file_sha256", str),
+    inputs = []
+    for row in input_payloads:
+        race_date = None
+        if schema_version == BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION:
+            race_date_text = _required(row, "race_date", str)
+            try:
+                race_date = date.fromisoformat(race_date_text)
+            except ValueError as error:
+                raise ValueError("evaluation race_date must be ISO 8601") from error
+        inputs.append(
+            BetTypeEvaluationInput(
+                race_id=_required(row, "race_id", str),
+                forecast_file_sha256=_required(
+                    row, "forecast_file_sha256", str
+                ),
+                payout_file_sha256=_required(
+                    row, "payout_file_sha256", str
+                ),
+                race_date=race_date,
+            )
         )
-        for row in input_payloads
-    )
+    input_rows = tuple(inputs)
     report = BetTypeEvaluationReport(tuple(
         _load_summary(row) for row in summary_payloads
     ))
-    if schema_version == _LEGACY_SCHEMA_VERSION:
-        return BetTypeEvaluationArtifact(inputs, report)
+    if schema_version == _LEGACY_SCHEMA_VERSION_WITHOUT_TICKETS:
+        return BetTypeEvaluationArtifact(input_rows, report)
 
     ticket_payloads = payload.get("tickets")
     if not isinstance(ticket_payloads, list):
@@ -379,4 +406,4 @@ def load_bet_type_evaluation_artifact(
     if any(not isinstance(row, dict) for row in ticket_payloads):
         raise ValueError("each evaluation ticket must be an object")
     tickets = tuple(_load_ticket(row) for row in ticket_payloads)
-    return BetTypeEvaluationArtifact(inputs, report, tickets)
+    return BetTypeEvaluationArtifact(input_rows, report, tickets)

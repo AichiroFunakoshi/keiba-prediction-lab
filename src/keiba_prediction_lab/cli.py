@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .bet_type_bootstrap import (
+    BootstrapResamplingUnit,
     DEFAULT_BOOTSTRAP_SAMPLES,
     DEFAULT_BOOTSTRAP_SEED,
     bootstrap_bet_type_evaluation_report_files,
@@ -68,6 +69,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--samples", type=int, default=DEFAULT_BOOTSTRAP_SAMPLES
     )
     bootstrap.add_argument("--seed", type=int, default=DEFAULT_BOOTSTRAP_SEED)
+    bootstrap.add_argument(
+        "--resampling-unit",
+        choices=tuple(unit.value for unit in BootstrapResamplingUnit),
+        default=BootstrapResamplingUnit.RACE.value,
+        help="resample paired races individually or as race-date clusters",
+    )
     return parser
 
 
@@ -110,6 +117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.candidate,
             samples=args.samples,
             seed=args.seed,
+            resampling_unit=BootstrapResamplingUnit(args.resampling_unit),
         )
         print(report.to_markdown(), end="")
         return 0

@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 
 from keiba_prediction_lab.bet_type_report import (
@@ -32,6 +33,7 @@ def artifact() -> BetTypeEvaluationArtifact:
             race_id,
             forecast_file_sha256=("a" if race_id == "race-1" else "b") * 64,
             payout_file_sha256=("c" if race_id == "race-1" else "d") * 64,
+            race_date=date(2026, 8, 22 if race_id == "race-1" else 23),
         )
         for race_id in race_ids
     )
@@ -77,9 +79,53 @@ class BetTypeReportTest(unittest.TestCase):
 
             loaded = load_bet_type_evaluation_artifact(path)
 
-        self.assertEqual(loaded.inputs, original.inputs)
+        self.assertEqual(
+            tuple(
+                (
+                    row.race_id,
+                    row.forecast_file_sha256,
+                    row.payout_file_sha256,
+                )
+                for row in loaded.inputs
+            ),
+            tuple(
+                (
+                    row.race_id,
+                    row.forecast_file_sha256,
+                    row.payout_file_sha256,
+                )
+                for row in original.inputs
+            ),
+        )
         self.assertEqual(loaded.report, original.report)
         self.assertEqual(loaded.tickets, ())
+        self.assertTrue(all(row.race_date is None for row in loaded.inputs))
+
+    def test_loads_legacy_1_1_report_without_race_dates(self) -> None:
+        original = artifact()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bet-types-evaluation.json"
+            save_bet_type_evaluation_artifact(original, path)
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            envelope["schema_version"] = "1.1"
+            for row in envelope["payload"]["inputs"]:
+                del row["race_date"]
+            canonical = json.dumps(
+                envelope["payload"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            envelope["sha256"] = hashlib.sha256(
+                canonical.encode("utf-8")
+            ).hexdigest()
+            path.write_text(json.dumps(envelope), encoding="utf-8")
+
+            loaded = load_bet_type_evaluation_artifact(path)
+
+        self.assertEqual(loaded.report, original.report)
+        self.assertEqual(loaded.tickets, original.tickets)
+        self.assertTrue(all(row.race_date is None for row in loaded.inputs))
 
     def test_ticket_ledger_must_reproduce_summaries(self) -> None:
         original = artifact()
@@ -95,6 +141,15 @@ class BetTypeReportTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "must contain a ticket ledger"):
                 save_bet_type_evaluation_artifact(
                     replace(original, tickets=()), path
+                )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "missing-date.json"
+            inputs = (
+                replace(original.inputs[0], race_date=None),
+            ) + original.inputs[1:]
+            with self.assertRaisesRegex(ValueError, "every race_date"):
+                save_bet_type_evaluation_artifact(
+                    replace(original, inputs=inputs), path
                 )
 
     def test_ticket_ledger_requires_canonical_unordered_selections(self) -> None:

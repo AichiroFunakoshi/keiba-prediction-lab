@@ -31,7 +31,8 @@ UTC = timezone.utc
 def _write_race_bundle(
     directory: Path, race_id: str, hit_type: BetType
 ) -> None:
-    predicted_at = datetime(2026, 8, 22, 5, 0, tzinfo=UTC)
+    race_day = 22 if race_id == "race-1" else 23
+    predicted_at = datetime(2026, 8, race_day, 5, 0, tzinfo=UTC)
     frozen_at = predicted_at + timedelta(minutes=10)
     scheduled_at = frozen_at + timedelta(hours=2)
     predictions = tuple(
@@ -154,6 +155,8 @@ class CliTest(unittest.TestCase):
                     "100",
                     "--seed",
                     "7",
+                    "--resampling-unit",
+                    "race-date",
                 ])
 
         self.assertEqual(exit_code, 0)
@@ -168,8 +171,11 @@ class CliTest(unittest.TestCase):
             comparison_output.getvalue(),
         )
         self.assertIn(
-            "# 馬券種別・対応ブートストラップ",
+            "# 馬券種別・対応クラスターブートストラップ",
             bootstrap_output.getvalue(),
+        )
+        self.assertIn(
+            "再標本化単位は開催日（2日）", bootstrap_output.getvalue()
         )
         self.assertIn("50.0%", bootstrap_output.getvalue())
         markdown = output.getvalue()
@@ -179,6 +185,10 @@ class CliTest(unittest.TestCase):
             ("race-1", "race-2"),
         )
         self.assertEqual(len(artifact.tickets), 12)
+        self.assertEqual(
+            tuple(row.race_date.isoformat() for row in artifact.inputs),
+            ("2026-08-22", "2026-08-23"),
+        )
         self.assertTrue(all(
             len(row.forecast_file_sha256) == 64
             and len(row.payout_file_sha256) == 64

@@ -9,6 +9,7 @@ from .baselines import (
     post_position_baseline,
 )
 from .bet_type_bootstrap import (
+    BootstrapResamplingUnit,
     DEFAULT_BOOTSTRAP_SAMPLES,
     DEFAULT_BOOTSTRAP_SEED,
     DEFAULT_CONFIDENCE_LEVEL,
@@ -185,6 +186,7 @@ __all__ = [
     "BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION",
     "BetTypeBootstrapReport",
     "BetTypeBootstrapSummary",
+    "BootstrapResamplingUnit",
     "BetType",
     "BetTypeEvaluationReport",
     "BetTypeEvaluationArtifact",
