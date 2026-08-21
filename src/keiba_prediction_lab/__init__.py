@@ -22,9 +22,12 @@ from .bet_type_forecast import (
     save_frozen_bet_type_forecast,
 )
 from .bet_type_settlement import (
+    BET_TYPE_PAYOUT_SCHEMA_VERSION,
     BetTypePayout,
     BetTypeRacePayouts,
     evaluate_frozen_bet_type_candidates,
+    load_bet_type_race_payouts,
+    save_bet_type_race_payouts,
     settle_frozen_bet_type_candidates,
 )
 from .calibration import (
@@ -153,6 +156,7 @@ __all__ = [
     "BET_TYPE_LABELS_JA",
     "BET_TYPE_FORECAST_SCHEMA_VERSION",
     "BET_TYPE_GENERATOR_VERSION",
+    "BET_TYPE_PAYOUT_SCHEMA_VERSION",
     "BetType",
     "BetTypeEvaluationReport",
     "BetTypeForecast",
@@ -246,6 +250,7 @@ __all__ = [
     "load_source_registry",
     "load_frozen_prediction",
     "load_frozen_bet_type_forecast",
+    "load_bet_type_race_payouts",
     "load_frozen_shadow_forecast",
     "post_position_baseline",
     "rank_pace_conditioned_trifectas",
@@ -255,6 +260,7 @@ __all__ = [
     "sha256_file",
     "save_frozen_prediction",
     "save_frozen_bet_type_forecast",
+    "save_bet_type_race_payouts",
     "save_frozen_shadow_forecast",
     "save_race_prediction_bundle",
     "settle_frozen_bet_type_candidates",

@@ -1,16 +1,125 @@
 import contextlib
 import io
 import json
+import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from keiba_prediction_lab.bet_type_forecast import (
+    freeze_bet_type_forecast,
+    save_frozen_bet_type_forecast,
+)
+from keiba_prediction_lab.bet_type_settlement import (
+    BetTypePayout,
+    BetTypeRacePayouts,
+    save_bet_type_race_payouts,
+)
 from keiba_prediction_lab.cli import main
+from keiba_prediction_lab.domain import BetType, PredictionRecord
+from keiba_prediction_lab.frozen import PredictionPhase
 
 
 ROOT = Path(__file__).resolve().parents[1]
+UTC = timezone.utc
+
+
+def _write_race_bundle(
+    directory: Path, race_id: str, hit_type: BetType
+) -> None:
+    predicted_at = datetime(2026, 8, 22, 5, 0, tzinfo=UTC)
+    frozen_at = predicted_at + timedelta(minutes=10)
+    scheduled_at = frozen_at + timedelta(hours=2)
+    predictions = tuple(
+        PredictionRecord(
+            race_id,
+            f"horse-{index}",
+            predicted_at,
+            "model-v1",
+            win_probability,
+            top3_probability,
+            index,
+        )
+        for index, (win_probability, top3_probability) in enumerate(
+            zip(
+                (0.40, 0.35, 0.15, 0.07, 0.03),
+                (0.90, 0.80, 0.60, 0.45, 0.25),
+            ),
+            start=1,
+        )
+    )
+    snapshot = freeze_bet_type_forecast(
+        predictions,
+        scheduled_at=scheduled_at,
+        frozen_at=frozen_at,
+        phase=PredictionPhase.PRE_ODDS,
+        input_data_version=f"sha256:{race_id}",
+    )
+    amounts = {
+        BetType.WIN: 250,
+        BetType.PLACE: 140,
+        BetType.QUINELLA: 780,
+        BetType.EXACTA: 1320,
+        BetType.TRIO: 910,
+        BetType.TRIFECTA: 4650,
+    }
+    rows = []
+    for bet_type in BetType:
+        table = snapshot.forecast.for_bet_type(bet_type)
+        candidate = snapshot.forecast.candidate_for(bet_type)
+        winner = (
+            candidate
+            if bet_type is hit_type
+            else next(row for row in table if row.selection != candidate.selection)
+        )
+        rows.append(BetTypePayout(
+            race_id, bet_type, winner.selection, amounts[bet_type]
+        ))
+        if bet_type is BetType.PLACE:
+            second = next(
+                row for row in table
+                if row.selection not in {winner.selection, candidate.selection}
+            )
+            rows.append(BetTypePayout(
+                race_id, bet_type, second.selection, 180
+            ))
+    directory.mkdir()
+    save_frozen_bet_type_forecast(
+        snapshot, directory / "bet-types-shadow.json"
+    )
+    save_bet_type_race_payouts(
+        BetTypeRacePayouts(race_id, tuple(rows)),
+        directory / "bet-types-payouts.json",
+    )
 
 
 class CliTest(unittest.TestCase):
+    def test_evaluate_bet_types_batches_race_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            first = root / "race-1"
+            second = root / "race-2"
+            _write_race_bundle(first, "race-1", BetType.WIN)
+            _write_race_bundle(second, "race-2", BetType.EXACTA)
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                exit_code = main([
+                    "evaluate-bet-types",
+                    str(second),
+                    str(first),
+                ])
+
+        self.assertEqual(exit_code, 0)
+        markdown = output.getvalue()
+        self.assertIn("# 馬券種別・固定100円評価", markdown)
+        self.assertIn("| 単勝 | 2 | 1 | 50.0% | 200円 | 250円 | 125.0% |", markdown)
+        self.assertIn(
+            "| 馬単 | 2 | 1 | 50.0% | 200円 | 1,320円 | 660.0% |",
+            markdown,
+        )
+        self.assertIn("| 3連単 | 2 | 0 | 0.0% | 200円 | 0円 | 0.0% |", markdown)
+
     def test_list_sources_outputs_json(self) -> None:
         output = io.StringIO()
         with contextlib.redirect_stdout(output):

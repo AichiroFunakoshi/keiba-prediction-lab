@@ -32,4 +32,18 @@
 
 `evaluate_frozen_bet_type_candidates` はレースIDが一対一に対応する複数のスナップショットと払戻表を決済し、券種ごとの固定100円評価へ渡す。ここでの100円は全券種を同じ条件で比較する反実仮想上の購入額であり、実際の購入記録ではない。
 
+## 払戻表の保存と一括評価
+
+`save_bet_type_race_payouts` は、1レース分の払戻表を `bet-types-payouts.json` として新規保存する。既存ファイルは上書きせず、スキーマ版 `1.0` と正規化した内容のSHA-256を同梱する。`load_bet_type_race_payouts` は決済前にスキーマ版とハッシュを検証する。
+
+評価対象の各ディレクトリには、発走前に固定した `bet-types-shadow.json` と、結果確定後に作成した `bet-types-payouts.json` を置く。複数レースは次のコマンドでまとめて評価できる。
+
+```bash
+PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types \
+  outputs/2026-08-22-race-1 \
+  outputs/2026-08-22-race-2
+```
+
+CLIは両ファイルの改変検知とレースIDの一対一対応を確認し、券種別のMarkdown表を標準出力へ出す。レースの指定順は集計結果に影響しない。
+
 この評価層は購入戦略を変更しない。実購入候補は引き続き、事前固定した三連単1点100円だけであり、他の馬券種は独立した研究評価として扱う。発走前の候補生成と固定方法は [BET_TYPE_SHADOW_FORECASTS.md](BET_TYPE_SHADOW_FORECASTS.md) に定める。
