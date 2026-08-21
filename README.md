@@ -58,6 +58,7 @@ CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、�
 脚質と想定ペースを使う第2基準線は [docs/PACE_MODEL.md](docs/PACE_MODEL.md) を参照してください。
 三連単生成モデルの公平な対応比較は [docs/MODEL_COMPARISON.md](docs/MODEL_COMPARISON.md) を参照してください。
 1レース分の実購入候補と影予測を一括固定する流れは [docs/PIPELINE.md](docs/PIPELINE.md) を参照してください。
+全6馬券種の固定100円評価は [docs/BET_TYPE_EVALUATION.md](docs/BET_TYPE_EVALUATION.md) を参照してください。
 
 ## ライセンス
 
