@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from keiba_prediction_lab.features import FeatureRow
 from keiba_prediction_lab.frozen import PredictionPhase, load_frozen_prediction
@@ -135,6 +136,19 @@ class RacePredictionPipelineTest(unittest.TestCase):
             self.assertTrue(all(row["stake_yen"] == 0 for row in manifest["shadows"]))
             with self.assertRaises(FileExistsError):
                 save_race_prediction_bundle(bundle(), target)
+
+    def test_removes_incomplete_bundle_after_save_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "race-1"
+            with patch(
+                "keiba_prediction_lab.pipeline.save_frozen_shadow_forecast",
+                side_effect=OSError("simulated write failure"),
+            ):
+                with self.assertRaisesRegex(OSError, "simulated write failure"):
+                    save_race_prediction_bundle(bundle(), target)
+
+            self.assertFalse(target.exists())
+            self.assertTrue(save_race_prediction_bundle(bundle(), target).is_file())
 
 
 if __name__ == "__main__":
