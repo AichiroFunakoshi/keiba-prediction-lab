@@ -161,6 +161,7 @@ class CliTest(unittest.TestCase):
             tuple(row.race_id for row in artifact.inputs),
             ("race-1", "race-2"),
         )
+        self.assertEqual(len(artifact.tickets), 12)
         self.assertTrue(all(
             len(row.forecast_file_sha256) == 64
             and len(row.payout_file_sha256) == 64

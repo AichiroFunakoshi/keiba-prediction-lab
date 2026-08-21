@@ -9,20 +9,23 @@ from typing import Any
 
 from .bet_type_forecast import load_frozen_bet_type_forecast
 from .bet_type_settlement import (
-    evaluate_frozen_bet_type_candidates,
     load_bet_type_race_payouts,
+    settle_frozen_bet_type_candidates,
 )
 from .data_audit import sha256_file
-from .domain import BetType
+from .domain import BetType, TicketResult
 from .evaluation import (
     BetTypeEvaluationReport,
     BetTypeSummary,
     FixedStakeSummary,
+    evaluate_ticket_results_by_bet_type,
 )
 
 
-BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION = "1.0"
+BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION = "1.1"
+_LEGACY_SCHEMA_VERSION = "1.0"
 _SHA256_LENGTH = 64
+_UNORDERED_BET_TYPES = frozenset((BetType.QUINELLA, BetType.TRIO))
 
 
 def _is_sha256(value: str) -> bool:
@@ -54,6 +57,7 @@ class BetTypeEvaluationArtifact:
 
     inputs: tuple[BetTypeEvaluationInput, ...]
     report: BetTypeEvaluationReport
+    tickets: tuple[TicketResult, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.inputs, tuple) or not self.inputs:
@@ -70,6 +74,41 @@ class BetTypeEvaluationArtifact:
             raise ValueError("every bet type must contain one ticket per input race")
         for summary in self.report.summaries:
             self._validate_summary(summary.fixed_stake)
+        if not isinstance(self.tickets, tuple):
+            raise ValueError("evaluation tickets must be a tuple")
+        if self.tickets:
+            if any(
+                not isinstance(ticket, TicketResult) for ticket in self.tickets
+            ):
+                raise ValueError("evaluation ledger rows must be TicketResult values")
+            if any(
+                not isinstance(ticket.selection, tuple)
+                or type(ticket.payout_yen) is not int
+                for ticket in self.tickets
+            ):
+                raise ValueError("evaluation ticket fields must be immutable and typed")
+            if any(
+                ticket.bet_type in _UNORDERED_BET_TYPES
+                and ticket.selection != tuple(sorted(ticket.selection))
+                for ticket in self.tickets
+            ):
+                raise ValueError(
+                    "unordered evaluation selections must use canonical order"
+                )
+            identities = tuple(
+                (ticket.race_id, ticket.bet_type) for ticket in self.tickets
+            )
+            expected = tuple(
+                (race_id, bet_type)
+                for race_id in race_ids
+                for bet_type in BetType
+            )
+            if identities != expected:
+                raise ValueError(
+                    "evaluation tickets must contain every race and bet type in order"
+                )
+            if evaluate_ticket_results_by_bet_type(self.tickets) != self.report:
+                raise ValueError("evaluation ticket ledger must reproduce summaries")
 
     @staticmethod
     def _validate_summary(summary: FixedStakeSummary) -> None:
@@ -166,11 +205,13 @@ def evaluate_bet_type_race_directories(
         BetTypeEvaluationInput(race_id, forecast_hash, payout_hash)
         for race_id, _, _, forecast_hash, payout_hash in loaded
     )
-    report = evaluate_frozen_bet_type_candidates(
-        tuple(row[1] for row in loaded),
-        tuple(row[2] for row in loaded),
+    tickets = tuple(
+        ticket
+        for _, snapshot, payouts, _, _ in loaded
+        for ticket in settle_frozen_bet_type_candidates(snapshot, payouts)
     )
-    return BetTypeEvaluationArtifact(inputs, report)
+    report = evaluate_ticket_results_by_bet_type(tickets)
+    return BetTypeEvaluationArtifact(inputs, report, tickets)
 
 
 def _summary_payload(summary: BetTypeSummary) -> dict[str, object]:
@@ -205,6 +246,15 @@ def _payload(artifact: BetTypeEvaluationArtifact) -> dict[str, object]:
             _summary_payload(summaries[bet_type])
             for bet_type in BetType
         ],
+        "tickets": [
+            {
+                "race_id": ticket.race_id,
+                "bet_type": ticket.bet_type.value,
+                "selection": list(ticket.selection),
+                "payout_yen": ticket.payout_yen,
+            }
+            for ticket in artifact.tickets
+        ],
     }
 
 
@@ -218,6 +268,8 @@ def save_bet_type_evaluation_artifact(
     artifact: BetTypeEvaluationArtifact, path: str | Path
 ) -> str:
     """Save one integrity-protected evaluation artifact without overwriting."""
+    if not artifact.tickets:
+        raise ValueError("new evaluation artifacts must contain a ticket ledger")
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = _payload(artifact)
@@ -260,6 +312,20 @@ def _load_summary(payload: dict[str, Any]) -> BetTypeSummary:
     )
 
 
+def _load_ticket(payload: dict[str, Any]) -> TicketResult:
+    selection = payload.get("selection")
+    if not isinstance(selection, list) or any(
+        not isinstance(horse_id, str) for horse_id in selection
+    ):
+        raise ValueError("evaluation ticket selection must be an array of strings")
+    return TicketResult(
+        race_id=_required(payload, "race_id", str),
+        bet_type=BetType(_required(payload, "bet_type", str)),
+        selection=tuple(selection),
+        payout_yen=_required(payload, "payout_yen", int),
+    )
+
+
 def load_bet_type_evaluation_artifact(
     path: str | Path,
 ) -> BetTypeEvaluationArtifact:
@@ -267,9 +333,10 @@ def load_bet_type_evaluation_artifact(
     envelope = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(envelope, dict):
         raise ValueError("bet type evaluation envelope must be an object")
-    if (
-        envelope.get("schema_version")
-        != BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION
+    schema_version = envelope.get("schema_version")
+    if schema_version not in (
+        _LEGACY_SCHEMA_VERSION,
+        BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION,
     ):
         raise ValueError("unsupported bet type evaluation schema_version")
     payload = envelope.get("payload")
@@ -303,4 +370,13 @@ def load_bet_type_evaluation_artifact(
     report = BetTypeEvaluationReport(tuple(
         _load_summary(row) for row in summary_payloads
     ))
-    return BetTypeEvaluationArtifact(inputs, report)
+    if schema_version == _LEGACY_SCHEMA_VERSION:
+        return BetTypeEvaluationArtifact(inputs, report)
+
+    ticket_payloads = payload.get("tickets")
+    if not isinstance(ticket_payloads, list):
+        raise ValueError("evaluation tickets must be an array")
+    if any(not isinstance(row, dict) for row in ticket_payloads):
+        raise ValueError("each evaluation ticket must be an object")
+    tickets = tuple(_load_ticket(row) for row in ticket_payloads)
+    return BetTypeEvaluationArtifact(inputs, report, tickets)
