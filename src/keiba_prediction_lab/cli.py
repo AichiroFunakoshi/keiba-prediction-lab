@@ -5,6 +5,11 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
+from .bet_type_forecast import load_frozen_bet_type_forecast
+from .bet_type_settlement import (
+    evaluate_frozen_bet_type_candidates,
+    load_bet_type_race_payouts,
+)
 from .data_audit import audit_standard_csv, load_source_registry
 
 
@@ -19,6 +24,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
     audit = subparsers.add_parser("audit-csv", help="audit a standardized CSV")
     audit.add_argument("path", type=Path)
+
+    evaluate = subparsers.add_parser(
+        "evaluate-bet-types",
+        help="evaluate frozen six-bet-type candidates across race directories",
+    )
+    evaluate.add_argument(
+        "race_directories",
+        type=Path,
+        nargs="+",
+        help=(
+            "directories containing bet-types-shadow.json and "
+            "bet-types-payouts.json"
+        ),
+    )
     return parser
 
 
@@ -37,6 +56,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             for source in sources
         ]
         print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "evaluate-bet-types":
+        snapshots = tuple(
+            load_frozen_bet_type_forecast(path / "bet-types-shadow.json")
+            for path in args.race_directories
+        )
+        payouts = tuple(
+            load_bet_type_race_payouts(path / "bet-types-payouts.json")
+            for path in args.race_directories
+        )
+        print(
+            evaluate_frozen_bet_type_candidates(snapshots, payouts).to_markdown(),
+            end="",
+        )
         return 0
 
     report = audit_standard_csv(args.path)

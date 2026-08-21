@@ -37,9 +37,10 @@ python -m unittest discover -s tests
 ```bash
 PYTHONPATH=src python -m keiba_prediction_lab.cli list-sources
 PYTHONPATH=src python -m keiba_prediction_lab.cli audit-csv tests/fixtures/synthetic_race_results.csv
+PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types outputs/race-1 outputs/race-2
 ```
 
-CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、日付・着順の異常をJSONで出力します。
+CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、日付・着順の異常をJSONで出力します。`evaluate-bet-types` は各ディレクトリの事前固定予測と払戻表を検証し、全6馬券種を混ぜずにMarkdownで一括評価します。
 
 ## 公開データに関する方針
 

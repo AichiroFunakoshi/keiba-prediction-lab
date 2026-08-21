@@ -1,11 +1,17 @@
+import hashlib
+import json
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from keiba_prediction_lab.bet_type_forecast import freeze_bet_type_forecast
 from keiba_prediction_lab.bet_type_settlement import (
     BetTypePayout,
     BetTypeRacePayouts,
     evaluate_frozen_bet_type_candidates,
+    load_bet_type_race_payouts,
+    save_bet_type_race_payouts,
     settle_frozen_bet_type_candidates,
 )
 from keiba_prediction_lab.domain import BetType, PredictionRecord
@@ -86,6 +92,52 @@ def payout_table(
 
 
 class BetTypeSettlementTest(unittest.TestCase):
+    def test_payout_json_round_trip_is_integrity_protected(self) -> None:
+        original = payout_table(snapshot("race-1"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bet-types-payouts.json"
+
+            digest = save_bet_type_race_payouts(original, path)
+            loaded = load_bet_type_race_payouts(path)
+
+        self.assertEqual(loaded, original)
+        self.assertEqual(len(digest), 64)
+
+    def test_payout_json_does_not_overwrite_or_accept_tampering(self) -> None:
+        original = payout_table(snapshot("race-1"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bet-types-payouts.json"
+            save_bet_type_race_payouts(original, path)
+            with self.assertRaises(FileExistsError):
+                save_bet_type_race_payouts(original, path)
+
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            envelope["payload"]["payouts"][0]["payout_yen"] += 1
+            path.write_text(json.dumps(envelope), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "integrity check failed"):
+                load_bet_type_race_payouts(path)
+
+    def test_payout_json_requires_selection_array(self) -> None:
+        original = payout_table(snapshot("race-1"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bet-types-payouts.json"
+            save_bet_type_race_payouts(original, path)
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            envelope["payload"]["payouts"][0]["selection"] = "x"
+            canonical = json.dumps(
+                envelope["payload"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            envelope["sha256"] = hashlib.sha256(
+                canonical.encode("utf-8")
+            ).hexdigest()
+            path.write_text(json.dumps(envelope), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "array of strings"):
+                load_bet_type_race_payouts(path)
+
     def test_settles_one_candidate_per_bet_type_at_fixed_100_yen(self) -> None:
         frozen = snapshot("race-1")
         results = payout_table(

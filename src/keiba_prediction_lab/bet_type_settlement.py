@@ -1,7 +1,10 @@
 """Settle frozen shadow candidates against explicit per-100-yen payouts."""
 
+import hashlib
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from .bet_type_forecast import FrozenBetTypeForecast
 from .domain import BetType, TicketResult
@@ -12,6 +15,7 @@ from .evaluation import (
 
 
 _UNORDERED_BET_TYPES = frozenset((BetType.QUINELLA, BetType.TRIO))
+BET_TYPE_PAYOUT_SCHEMA_VERSION = "1.0"
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,88 @@ class BetTypeRacePayouts:
             raise ValueError("payout selections must be unique within each bet type")
         if {row.bet_type for row in self.payouts} != set(BetType):
             raise ValueError("payout table must contain every supported bet type")
+
+
+def _payout_payload(result: BetTypeRacePayouts) -> dict[str, object]:
+    return {
+        "race_id": result.race_id,
+        "payouts": [
+            {
+                "bet_type": row.bet_type.value,
+                "selection": list(row.selection),
+                "payout_yen": row.payout_yen,
+            }
+            for row in result.payouts
+        ],
+    }
+
+
+def _canonical(payload: dict[str, object]) -> str:
+    return json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+
+def save_bet_type_race_payouts(
+    result: BetTypeRacePayouts, path: str | Path
+) -> str:
+    """Create a new integrity-protected payout table without overwriting one."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = _payout_payload(result)
+    digest = hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
+    envelope = {
+        "schema_version": BET_TYPE_PAYOUT_SCHEMA_VERSION,
+        "sha256": digest,
+        "payload": payload,
+    }
+    with target.open("x", encoding="utf-8") as handle:
+        json.dump(envelope, handle, ensure_ascii=False, sort_keys=True, indent=2)
+        handle.write("\n")
+    return digest
+
+
+def load_bet_type_race_payouts(path: str | Path) -> BetTypeRacePayouts:
+    """Load a payout table after verifying its schema and canonical digest."""
+    envelope = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(envelope, dict):
+        raise ValueError("bet type payout envelope must be an object")
+    if envelope.get("schema_version") != BET_TYPE_PAYOUT_SCHEMA_VERSION:
+        raise ValueError("unsupported bet type payout schema_version")
+    payload = envelope.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("bet type payout payload must be an object")
+    digest = hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
+    if digest != envelope.get("sha256"):
+        raise ValueError("bet type payout integrity check failed")
+
+    race_id = payload.get("race_id")
+    payouts = payload.get("payouts")
+    if not isinstance(race_id, str):
+        raise ValueError("payout race_id must be a string")
+    if not isinstance(payouts, list):
+        raise ValueError("payouts must be an array")
+    rows = []
+    for row in payouts:
+        if not isinstance(row, dict):
+            raise ValueError("each payout must be an object")
+        bet_type = row.get("bet_type")
+        selection = row.get("selection")
+        if not isinstance(bet_type, str):
+            raise ValueError("payout bet_type must be a string")
+        if not isinstance(selection, list) or any(
+            not isinstance(horse_id, str) for horse_id in selection
+        ):
+            raise ValueError("payout selection must be an array of strings")
+        rows.append(
+            BetTypePayout(
+                race_id=race_id,
+                bet_type=BetType(bet_type),
+                selection=tuple(selection),
+                payout_yen=row.get("payout_yen"),
+            )
+        )
+    return BetTypeRacePayouts(race_id, tuple(rows))
 
 
 def _validate_payouts_against_forecast(
