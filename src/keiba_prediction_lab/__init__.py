@@ -79,6 +79,13 @@ from .pace import (
     build_pace_conditioned_forecast,
     rank_pace_conditioned_trifectas,
 )
+from .pipeline import (
+    PIPELINE_MANIFEST_SCHEMA_VERSION,
+    PIPELINE_POLICY_VERSION,
+    RacePredictionBundle,
+    run_race_prediction_pipeline,
+    save_race_prediction_bundle,
+)
 from .shadow_snapshot import (
     DEFAULT_GENERATOR_VERSION,
     SHADOW_SNAPSHOT_SCHEMA_VERSION,
@@ -138,6 +145,8 @@ __all__ = [
     "FrozenTrifectaTicket",
     "FeatureRow",
     "PACE_GENERATOR_VERSION",
+    "PIPELINE_MANIFEST_SCHEMA_VERSION",
+    "PIPELINE_POLICY_VERSION",
     "PairedPortfolioComparison",
     "PaceRunnerProfile",
     "PredictionRecord",
@@ -146,6 +155,7 @@ __all__ = [
     "RedistributionStatus",
     "ResultRecord",
     "RacePaceScenario",
+    "RacePredictionBundle",
     "RacePerformance",
     "RunningStyle",
     "Surface",
@@ -198,9 +208,11 @@ __all__ = [
     "rank_pace_conditioned_trifectas",
     "rank_trifecta_combinations",
     "run_walk_forward",
+    "run_race_prediction_pipeline",
     "sha256_file",
     "save_frozen_prediction",
     "save_frozen_shadow_forecast",
+    "save_race_prediction_bundle",
     "top1_accuracy",
     "top3_unordered_accuracy",
     "temperature_scale_predictions",
