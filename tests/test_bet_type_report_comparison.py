@@ -1,5 +1,6 @@
 import unittest
 from dataclasses import replace
+from datetime import date
 
 from keiba_prediction_lab.bet_type_report import (
     BetTypeEvaluationArtifact,
@@ -24,6 +25,7 @@ def evaluation_artifact(
             race_id,
             forecast_file_sha256=forecast_hash_character * 64,
             payout_file_sha256=("c" if race_id == "race-1" else "d") * 64,
+            race_date=date(2026, 8, 22 if race_id == "race-1" else 23),
         )
         for race_id in RACE_IDS
     )
@@ -101,6 +103,16 @@ class BetTypeReportComparisonTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "identical payout files"):
             compare_bet_type_evaluation_artifacts(baseline, different_payout)
+
+        different_date = replace(
+            candidate,
+            inputs=(
+                replace(candidate.inputs[0], race_date=date(2026, 8, 24)),
+                candidate.inputs[1],
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "identical race_date"):
+            compare_bet_type_evaluation_artifacts(baseline, different_date)
 
 
 if __name__ == "__main__":

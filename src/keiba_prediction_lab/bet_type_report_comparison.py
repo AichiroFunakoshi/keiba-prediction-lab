@@ -123,6 +123,16 @@ def compare_bet_type_evaluation_artifacts(
             raise ValueError(
                 "paired artifacts must use identical payout files for every race"
             )
+        baseline_date = baseline_inputs[race_id].race_date
+        candidate_date = candidate_inputs[race_id].race_date
+        if (
+            baseline_date is not None
+            and candidate_date is not None
+            and baseline_date != candidate_date
+        ):
+            raise ValueError(
+                "paired artifacts must use identical race_date for every race"
+            )
 
     race_ids = tuple(sorted(baseline_inputs))
     deltas = tuple(

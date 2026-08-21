@@ -3,6 +3,7 @@
 import math
 import random
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 from .bet_type_report import (
@@ -20,6 +21,13 @@ MINIMUM_RECOMMENDED_RACES = 300
 DEFAULT_BOOTSTRAP_SAMPLES = 10_000
 DEFAULT_BOOTSTRAP_SEED = 0
 DEFAULT_CONFIDENCE_LEVEL = 0.95
+
+
+class BootstrapResamplingUnit(str, Enum):
+    """Dependence unit resampled by the paired bootstrap."""
+
+    RACE = "race"
+    RACE_DATE = "race-date"
 
 
 @dataclass(frozen=True)
@@ -69,6 +77,8 @@ class BetTypeBootstrapReport:
     samples: int
     seed: int
     confidence_level: float
+    resampling_unit: BootstrapResamplingUnit
+    cluster_count: int
     summaries: tuple[BetTypeBootstrapSummary, ...]
 
     def __post_init__(self) -> None:
@@ -88,6 +98,17 @@ class BetTypeBootstrapReport:
             or not 0.5 < self.confidence_level < 1.0
         ):
             raise ValueError("bootstrap confidence_level must be between 0.5 and 1")
+        if not isinstance(self.resampling_unit, BootstrapResamplingUnit):
+            raise ValueError("bootstrap resampling_unit is invalid")
+        if type(self.cluster_count) is not int or self.cluster_count < 2:
+            raise ValueError("bootstrap requires at least two resampling clusters")
+        if self.cluster_count > len(self.race_ids):
+            raise ValueError("bootstrap clusters must not exceed race count")
+        if (
+            self.resampling_unit is BootstrapResamplingUnit.RACE
+            and self.cluster_count != len(self.race_ids)
+        ):
+            raise ValueError("race bootstrap must contain one cluster per race")
         if tuple(row.bet_type for row in self.summaries) != tuple(BetType):
             raise ValueError("bootstrap summaries must contain every bet type in order")
 
@@ -117,7 +138,7 @@ class BetTypeBootstrapReport:
         else:
             status = f"最低目安{MINIMUM_RECOMMENDED_RACES}レースを満たす。"
         lines = [
-            "# 馬券種別・対応ブートストラップ",
+            "# 馬券種別・対応クラスターブートストラップ",
             "",
             status,
             (
@@ -129,14 +150,31 @@ class BetTypeBootstrapReport:
                 "参考値であり、"
                 "有意差判定ではない。"
             ),
-            "開催日内の相関と、6券種を同時に見る多重比較は補正していない。",
+        ]
+        if self.resampling_unit is BootstrapResamplingUnit.RACE_DATE:
+            lines.extend((
+                (
+                    f"再標本化単位は開催日（{self.cluster_count}日）。"
+                    "同日の全レースを一塊として抽出する。"
+                ),
+                "6券種を同時に見る多重比較は補正していない。",
+            ))
+        else:
+            lines.extend((
+                f"再標本化単位はレース（{self.cluster_count}レース）。",
+                (
+                    "開催日内の相関と、6券種を同時に見る"
+                    "多重比較は補正していない。"
+                ),
+            ))
+        lines.extend((
             "",
             (
                 "| 馬券種 | 的中率差 [区間] | P(候補>基準) | "
                 "回収率差 [区間] | P(候補>基準) |"
             ),
             "|---|---:|---:|---:|---:|",
-        ]
+        ))
         for bet_type in BetType:
             summary = self.for_bet_type(bet_type)
             lines.append(
@@ -227,11 +265,12 @@ def bootstrap_bet_type_evaluation_artifacts(
     samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
     seed: int = DEFAULT_BOOTSTRAP_SEED,
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
+    resampling_unit: BootstrapResamplingUnit = BootstrapResamplingUnit.RACE,
 ) -> BetTypeBootstrapReport:
-    """Estimate paired race-level intervals for every supported bet type."""
+    """Estimate paired race- or race-date-level intervals for every bet type."""
     comparison = compare_bet_type_evaluation_artifacts(baseline, candidate)
     if not baseline.tickets or not candidate.tickets:
-        raise ValueError("bootstrap requires schema 1.1 reports with ticket ledgers")
+        raise ValueError("bootstrap requires reports with ticket ledgers")
     if len(comparison.race_ids) < 2:
         raise ValueError("bootstrap requires at least two paired races")
     if type(samples) is not int or samples < 100:
@@ -244,6 +283,8 @@ def bootstrap_bet_type_evaluation_artifacts(
         or not 0.5 < confidence_level < 1.0
     ):
         raise ValueError("bootstrap confidence_level must be between 0.5 and 1")
+    if not isinstance(resampling_unit, BootstrapResamplingUnit):
+        raise ValueError("bootstrap resampling_unit is invalid")
 
     baseline_payouts = {
         (ticket.race_id, ticket.bet_type): ticket.payout_yen
@@ -269,13 +310,54 @@ def bootstrap_bet_type_evaluation_artifacts(
     point_estimates = {
         bet_type: _metric_deltas(*arrays[bet_type]) for bet_type in BetType
     }
+    if resampling_unit is BootstrapResamplingUnit.RACE_DATE:
+        baseline_dates = {
+            row.race_id: row.race_date for row in baseline.inputs
+        }
+        candidate_dates = {
+            row.race_id: row.race_date for row in candidate.inputs
+        }
+        if any(
+            baseline_dates[race_id] is None
+            or candidate_dates[race_id] is None
+            for race_id in comparison.race_ids
+        ):
+            raise ValueError(
+                "race-date bootstrap requires schema 1.2 reports with race_date"
+            )
+        if any(
+            baseline_dates[race_id] != candidate_dates[race_id]
+            for race_id in comparison.race_ids
+        ):
+            raise ValueError(
+                "race-date bootstrap requires identical paired race_date values"
+            )
+        dates = tuple(sorted({
+            baseline_dates[race_id] for race_id in comparison.race_ids
+        }))
+        clusters = tuple(
+            tuple(
+                index
+                for index, race_id in enumerate(comparison.race_ids)
+                if baseline_dates[race_id] == race_date
+            )
+            for race_date in dates
+        )
+    else:
+        clusters = tuple((index,) for index in range(len(comparison.race_ids)))
+    if len(clusters) < 2:
+        raise ValueError("bootstrap requires at least two resampling clusters")
+
     distributions = {
         bet_type: ([], [], [], []) for bet_type in BetType
     }
     rng = random.Random(seed)
-    race_count = len(comparison.race_ids)
     for _ in range(samples):
-        indices = tuple(rng.randrange(race_count) for _ in range(race_count))
+        indices = tuple(
+            race_index
+            for _ in range(len(clusters))
+            for race_index in clusters[rng.randrange(len(clusters))]
+        )
         for bet_type in BetType:
             baseline_values, candidate_values = arrays[bet_type]
             deltas = _metric_deltas(
@@ -300,11 +382,13 @@ def bootstrap_bet_type_evaluation_artifacts(
         for bet_type in BetType
     )
     return BetTypeBootstrapReport(
-        comparison.race_ids,
-        samples,
-        seed,
-        confidence_level,
-        summaries,
+        race_ids=comparison.race_ids,
+        samples=samples,
+        seed=seed,
+        confidence_level=confidence_level,
+        resampling_unit=resampling_unit,
+        cluster_count=len(clusters),
+        summaries=summaries,
     )
 
 
@@ -314,6 +398,7 @@ def bootstrap_bet_type_evaluation_report_files(
     *,
     samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
     seed: int = DEFAULT_BOOTSTRAP_SEED,
+    resampling_unit: BootstrapResamplingUnit = BootstrapResamplingUnit.RACE,
 ) -> BetTypeBootstrapReport:
     """Load two reports and run a reproducible paired bootstrap."""
     return bootstrap_bet_type_evaluation_artifacts(
@@ -321,4 +406,5 @@ def bootstrap_bet_type_evaluation_report_files(
         load_bet_type_evaluation_artifact(candidate_path),
         samples=samples,
         seed=seed,
+        resampling_unit=resampling_unit,
     )
