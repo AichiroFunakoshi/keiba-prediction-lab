@@ -158,11 +158,21 @@ class CliTest(unittest.TestCase):
                     "--resampling-unit",
                     "race-date",
                 ])
+            diagnostics_output = io.StringIO()
+            with contextlib.redirect_stdout(diagnostics_output):
+                diagnostics_exit_code = main([
+                    "diagnose-bet-type-reports",
+                    str(report_path),
+                    str(reordered_report_path),
+                    "--format",
+                    "json",
+                ])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(reordered_exit_code, 0)
         self.assertEqual(comparison_exit_code, 0)
         self.assertEqual(bootstrap_exit_code, 0)
+        self.assertEqual(diagnostics_exit_code, 0)
         self.assertTrue(reports_match)
         self.assertEqual(reordered_output.getvalue(), output.getvalue())
         self.assertIn("# 馬券種別・対応比較", comparison_output.getvalue())
@@ -178,6 +188,9 @@ class CliTest(unittest.TestCase):
             "再標本化単位は開催日（2日）", bootstrap_output.getvalue()
         )
         self.assertIn("50.0%", bootstrap_output.getvalue())
+        diagnostics = json.loads(diagnostics_output.getvalue())
+        self.assertEqual(diagnostics["race_count"], 2)
+        self.assertEqual(len(diagnostics["race_rows"]), 12)
         markdown = output.getvalue()
         self.assertIn("# 馬券種別・固定100円評価", markdown)
         self.assertEqual(
