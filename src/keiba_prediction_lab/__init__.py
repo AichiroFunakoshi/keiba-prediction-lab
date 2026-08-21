@@ -21,6 +21,12 @@ from .bet_type_forecast import (
     load_frozen_bet_type_forecast,
     save_frozen_bet_type_forecast,
 )
+from .bet_type_settlement import (
+    BetTypePayout,
+    BetTypeRacePayouts,
+    evaluate_frozen_bet_type_candidates,
+    settle_frozen_bet_type_candidates,
+)
 from .calibration import (
     CalibrationRow,
     TemperatureCalibratedModel,
@@ -150,7 +156,9 @@ __all__ = [
     "BetType",
     "BetTypeEvaluationReport",
     "BetTypeForecast",
+    "BetTypePayout",
     "BetTypeProbability",
+    "BetTypeRacePayouts",
     "BetTypeSummary",
     "CalibrationBin",
     "CalibrationRow",
@@ -220,6 +228,7 @@ __all__ = [
     "compare_trifecta_generators",
     "diagnose_segments",
     "evaluate_fixed_stake",
+    "evaluate_frozen_bet_type_candidates",
     "evaluate_ticket_results_by_bet_type",
     "evaluate_frozen_predictions",
     "evaluate_shadow_portfolios",
@@ -248,6 +257,7 @@ __all__ = [
     "save_frozen_bet_type_forecast",
     "save_frozen_shadow_forecast",
     "save_race_prediction_bundle",
+    "settle_frozen_bet_type_candidates",
     "top1_accuracy",
     "top3_unordered_accuracy",
     "temperature_scale_predictions",
