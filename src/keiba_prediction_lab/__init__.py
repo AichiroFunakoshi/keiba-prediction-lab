@@ -101,6 +101,12 @@ from .trifecta import (
     evaluate_shadow_portfolios,
     rank_trifecta_combinations,
 )
+from .trifecta_comparison import (
+    PairedPortfolioComparison,
+    TrifectaGeneratorComparison,
+    compare_frozen_trifecta_generators,
+    compare_trifecta_generators,
+)
 from .walk_forward import (
     WalkForwardFoldResult,
     WalkForwardResult,
@@ -132,6 +138,7 @@ __all__ = [
     "FrozenTrifectaTicket",
     "FeatureRow",
     "PACE_GENERATOR_VERSION",
+    "PairedPortfolioComparison",
     "PaceRunnerProfile",
     "PredictionRecord",
     "PredictionPhase",
@@ -148,6 +155,7 @@ __all__ = [
     "TrainingRow",
     "TrifectaCombination",
     "TrifectaForecast",
+    "TrifectaGeneratorComparison",
     "TrifectaPayout",
     "TrifectaRaceResult",
     "TrifectaStrategy",
@@ -168,6 +176,8 @@ __all__ = [
     "build_trifecta_forecast",
     "calibration_summary",
     "confidence_bucket",
+    "compare_frozen_trifecta_generators",
+    "compare_trifecta_generators",
     "diagnose_segments",
     "evaluate_fixed_stake",
     "evaluate_frozen_predictions",
