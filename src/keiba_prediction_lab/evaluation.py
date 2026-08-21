@@ -3,6 +3,20 @@
 from dataclasses import dataclass
 from typing import Iterable
 
+from .domain import BetType, TicketResult
+
+
+BET_TYPE_LABELS_JA = {
+    BetType.WIN: "単勝",
+    BetType.PLACE: "複勝",
+    BetType.QUINELLA: "馬連",
+    BetType.EXACTA: "馬単",
+    BetType.TRIO: "3連複",
+    BetType.TRIFECTA: "3連単",
+}
+
+_UNORDERED_BET_TYPES = frozenset({BetType.QUINELLA, BetType.TRIO})
+
 
 @dataclass(frozen=True)
 class FixedStakeSummary:
@@ -16,6 +30,54 @@ class FixedStakeSummary:
     largest_hit_share: float
     top3_hit_share: float
     top5_hit_share: float
+
+
+@dataclass(frozen=True)
+class BetTypeSummary:
+    bet_type: BetType
+    fixed_stake: FixedStakeSummary
+
+
+@dataclass(frozen=True)
+class BetTypeEvaluationReport:
+    """Fixed-stake summaries kept separate for every supported bet type."""
+
+    summaries: tuple[BetTypeSummary, ...]
+
+    def __post_init__(self) -> None:
+        bet_types = [row.bet_type for row in self.summaries]
+        if len(set(bet_types)) != len(bet_types):
+            raise ValueError("bet type summaries must be unique")
+        if set(bet_types) != set(BetType):
+            raise ValueError("report must contain every supported bet type")
+
+    def for_bet_type(self, bet_type: BetType) -> FixedStakeSummary:
+        return next(
+            row.fixed_stake for row in self.summaries if row.bet_type is bet_type
+        )
+
+    def to_markdown(self) -> str:
+        lines = [
+            "# 馬券種別・固定100円評価",
+            "",
+            "各馬券種を独立して集計し、馬券種をまたいだ回収率は算出しない。",
+            "",
+            "| 馬券種 | 点数 | 的中 | 的中率 | 購入額 | 払戻額 | 回収率 | 最高払戻除外後 | 最高1件 | 上位3件 | 上位5件 |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+        for bet_type in BetType:
+            summary = self.for_bet_type(bet_type)
+            lines.append(
+                f"| {BET_TYPE_LABELS_JA[bet_type]} | {summary.tickets} | "
+                f"{summary.hits} | {summary.hit_rate:.1%} | "
+                f"{summary.total_stake_yen:,}円 | {summary.total_return_yen:,}円 | "
+                f"{summary.return_rate:.1%} | "
+                f"{summary.return_rate_without_largest_hit:.1%} | "
+                f"{summary.largest_hit_share:.1%} | "
+                f"{summary.top3_hit_share:.1%} | "
+                f"{summary.top5_hit_share:.1%} |"
+            )
+        return "\n".join(lines) + "\n"
 
 
 def evaluate_fixed_stake(
@@ -53,3 +115,31 @@ def evaluate_fixed_stake(
         top3_hit_share=payout_share(3),
         top5_hit_share=payout_share(5),
     )
+
+
+def _ticket_identity(ticket: TicketResult) -> tuple[str, BetType, tuple[str, ...]]:
+    selection = (
+        tuple(sorted(ticket.selection))
+        if ticket.bet_type in _UNORDERED_BET_TYPES
+        else ticket.selection
+    )
+    return ticket.race_id, ticket.bet_type, selection
+
+
+def evaluate_ticket_results_by_bet_type(
+    tickets: Iterable[TicketResult],
+) -> BetTypeEvaluationReport:
+    """Evaluate all supported bet types independently at one point per 100 yen."""
+    grouped: dict[BetType, list[int]] = {bet_type: [] for bet_type in BetType}
+    seen: set[tuple[str, BetType, tuple[str, ...]]] = set()
+    for ticket in tickets:
+        identity = _ticket_identity(ticket)
+        if identity in seen:
+            raise ValueError("duplicate ticket within the same race and bet type")
+        seen.add(identity)
+        grouped[ticket.bet_type].append(ticket.payout_yen)
+
+    return BetTypeEvaluationReport(tuple(
+        BetTypeSummary(bet_type, evaluate_fixed_stake(grouped[bet_type]))
+        for bet_type in BetType
+    ))

@@ -39,7 +39,14 @@ from .data_audit import (
     load_source_registry,
     sha256_file,
 )
-from .evaluation import FixedStakeSummary, evaluate_fixed_stake
+from .evaluation import (
+    BET_TYPE_LABELS_JA,
+    BetTypeEvaluationReport,
+    BetTypeSummary,
+    FixedStakeSummary,
+    evaluate_fixed_stake,
+    evaluate_ticket_results_by_bet_type,
+)
 from .features import (
     FeatureRow,
     RacePerformance,
@@ -124,7 +131,10 @@ from .walk_forward import (
 __all__ = [
     "BaselineRunner",
     "BaselineScore",
+    "BET_TYPE_LABELS_JA",
     "BetType",
+    "BetTypeEvaluationReport",
+    "BetTypeSummary",
     "CalibrationBin",
     "CalibrationRow",
     "CalibrationSummary",
@@ -190,6 +200,7 @@ __all__ = [
     "compare_trifecta_generators",
     "diagnose_segments",
     "evaluate_fixed_stake",
+    "evaluate_ticket_results_by_bet_type",
     "evaluate_frozen_predictions",
     "evaluate_shadow_portfolios",
     "distance_band",
