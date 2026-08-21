@@ -150,6 +150,10 @@ class BetTypeForecastTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "must be 2 or 3"):
             build_bet_type_forecast(predictions(), place_payout_slots=1)
+        with self.assertRaisesRegex(ValueError, "must be 2 or 3"):
+            build_bet_type_forecast(
+                predictions(), place_payout_slots=2.0  # type: ignore[arg-type]
+            )
 
     def test_rejects_incomplete_joint_distribution(self) -> None:
         combinations = rank_trifecta_combinations(predictions())

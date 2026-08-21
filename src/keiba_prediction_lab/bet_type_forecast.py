@@ -88,7 +88,8 @@ class BetTypeForecast:
         if len(runner_ids) < 5 or len(runner_ids) != len(win_selections):
             raise ValueError("bet type forecast requires at least five unique runners")
         if (
-            self.place_payout_slots not in (2, 3)
+            type(self.place_payout_slots) is not int
+            or self.place_payout_slots not in (2, 3)
             or self.place_payout_slots > len(runner_ids)
         ):
             raise ValueError("place_payout_slots must be 2 or 3 and fit the race")
@@ -170,7 +171,11 @@ def _resolve_place_payout_slots(
 ) -> int:
     if place_payout_slots is None:
         return 3 if runner_count >= 8 else 2
-    if place_payout_slots not in (2, 3) or place_payout_slots > runner_count:
+    if (
+        type(place_payout_slots) is not int
+        or place_payout_slots not in (2, 3)
+        or place_payout_slots > runner_count
+    ):
         raise ValueError("place_payout_slots must be 2 or 3 and fit the race")
     return place_payout_slots
 
@@ -237,6 +242,8 @@ def build_bet_type_forecast(
 ) -> BetTypeForecast:
     """Build baseline bet-type tables using Plackett-Luce finish probabilities."""
     predictions = tuple(predictions)
+    if len(predictions) < 5:
+        raise ValueError("at least five runners are required for all six bet types")
     return build_bet_type_forecast_from_combinations(
         predictions,
         rank_trifecta_combinations(predictions),
