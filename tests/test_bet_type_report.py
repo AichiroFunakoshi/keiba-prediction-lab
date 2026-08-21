@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -37,6 +38,7 @@ def artifact() -> BetTypeEvaluationArtifact:
     return BetTypeEvaluationArtifact(
         inputs,
         evaluate_ticket_results_by_bet_type(tickets),
+        tickets,
     )
 
 
@@ -51,7 +53,69 @@ class BetTypeReportTest(unittest.TestCase):
 
         self.assertEqual(loaded, original)
         self.assertEqual(loaded.to_markdown(), original.to_markdown())
+        self.assertEqual(len(loaded.tickets), 12)
         self.assertEqual(len(digest), 64)
+
+    def test_loads_legacy_1_0_report_without_ticket_ledger(self) -> None:
+        original = artifact()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bet-types-evaluation.json"
+            save_bet_type_evaluation_artifact(original, path)
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            envelope["schema_version"] = "1.0"
+            del envelope["payload"]["tickets"]
+            canonical = json.dumps(
+                envelope["payload"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            envelope["sha256"] = hashlib.sha256(
+                canonical.encode("utf-8")
+            ).hexdigest()
+            path.write_text(json.dumps(envelope), encoding="utf-8")
+
+            loaded = load_bet_type_evaluation_artifact(path)
+
+        self.assertEqual(loaded.inputs, original.inputs)
+        self.assertEqual(loaded.report, original.report)
+        self.assertEqual(loaded.tickets, ())
+
+    def test_ticket_ledger_must_reproduce_summaries(self) -> None:
+        original = artifact()
+        changed_ticket = replace(original.tickets[0], payout_yen=0)
+        with self.assertRaisesRegex(ValueError, "reproduce summaries"):
+            BetTypeEvaluationArtifact(
+                original.inputs,
+                original.report,
+                (changed_ticket,) + original.tickets[1:],
+            )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy.json"
+            with self.assertRaisesRegex(ValueError, "must contain a ticket ledger"):
+                save_bet_type_evaluation_artifact(
+                    replace(original, tickets=()), path
+                )
+
+    def test_ticket_ledger_requires_canonical_unordered_selections(self) -> None:
+        original = artifact()
+        index = next(
+            index
+            for index, ticket in enumerate(original.tickets)
+            if ticket.bet_type is BetType.QUINELLA
+        )
+        ticket = original.tickets[index]
+        reversed_ticket = replace(
+            ticket, selection=tuple(reversed(ticket.selection))
+        )
+        tickets = (
+            original.tickets[:index]
+            + (reversed_ticket,)
+            + original.tickets[index + 1:]
+        )
+
+        with self.assertRaisesRegex(ValueError, "canonical order"):
+            BetTypeEvaluationArtifact(original.inputs, original.report, tickets)
 
     def test_save_does_not_overwrite_and_load_rejects_tampering(self) -> None:
         original = artifact()

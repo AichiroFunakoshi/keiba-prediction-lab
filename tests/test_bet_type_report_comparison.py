@@ -44,6 +44,7 @@ def evaluation_artifact(
     return BetTypeEvaluationArtifact(
         inputs,
         evaluate_ticket_results_by_bet_type(tickets),
+        tickets,
     )
 
 
@@ -86,6 +87,7 @@ class BetTypeReportComparisonTest(unittest.TestCase):
                 replace(candidate.inputs[0], race_id="race-0"),
                 candidate.inputs[1],
             ),
+            tickets=(),
         )
         with self.assertRaisesRegex(ValueError, "identical race_ids"):
             compare_bet_type_evaluation_artifacts(baseline, different_races)
