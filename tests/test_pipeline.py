@@ -1,10 +1,16 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from keiba_prediction_lab.bet_type_forecast import (
+    build_bet_type_forecast_from_combinations,
+    load_frozen_bet_type_forecast,
+)
+from keiba_prediction_lab.domain import BetType
 from keiba_prediction_lab.features import FeatureRow
 from keiba_prediction_lab.frozen import PredictionPhase, load_frozen_prediction
 from keiba_prediction_lab.model import ConditionalLogitModel
@@ -93,6 +99,14 @@ class RacePredictionPipelineTest(unittest.TestCase):
             result.baseline_shadow.forecast.primary_ticket.selection,
         )
         self.assertEqual(result.pace_shadow.generator_version, "pace-scenario-v1")
+        self.assertEqual(
+            tuple(row.bet_type for row in result.bet_type_shadow.forecast.candidates),
+            tuple(BetType),
+        )
+        self.assertEqual(
+            result.bet_type_shadow.generator_version,
+            "plackett-luce-marginals-v1",
+        )
 
     def test_shadow_forecasts_record_all_counterfactual_sizes(self) -> None:
         result = bundle()
@@ -117,6 +131,19 @@ class RacePredictionPipelineTest(unittest.TestCase):
         self.assertEqual(fitted, before)
         self.assertEqual(first, second)
 
+    def test_rejects_bet_type_shadow_from_a_different_joint_distribution(self) -> None:
+        result = bundle()
+        alternate_forecast = build_bet_type_forecast_from_combinations(
+            result.actual_prediction.predictions,
+            result.pace_shadow.forecast.all_combinations,
+        )
+        alternate_shadow = replace(
+            result.bet_type_shadow, forecast=alternate_forecast
+        )
+
+        with self.assertRaisesRegex(ValueError, "baseline distribution"):
+            replace(result, bet_type_shadow=alternate_shadow)
+
     def test_saves_separate_immutable_actual_and_shadow_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             target = Path(temp_dir) / "race-1"
@@ -132,8 +159,18 @@ class RacePredictionPipelineTest(unittest.TestCase):
                 load_frozen_shadow_forecast(target / "pace-shadow.json"),
                 bundle().pace_shadow,
             )
+            self.assertEqual(
+                load_frozen_bet_type_forecast(target / "bet-types-shadow.json"),
+                bundle().bet_type_shadow,
+            )
             self.assertEqual(manifest["actual"]["stake_yen"], 100)
             self.assertTrue(all(row["stake_yen"] == 0 for row in manifest["shadows"]))
+            bet_type_entry = next(
+                row for row in manifest["shadows"]
+                if row["file"] == "bet-types-shadow.json"
+            )
+            self.assertEqual(bet_type_entry["candidate_count"], len(BetType))
+            self.assertEqual(bet_type_entry["place_payout_slots"], 2)
             with self.assertRaises(FileExistsError):
                 save_race_prediction_bundle(bundle(), target)
 
@@ -141,7 +178,7 @@ class RacePredictionPipelineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             target = Path(temp_dir) / "race-1"
             with patch(
-                "keiba_prediction_lab.pipeline.save_frozen_shadow_forecast",
+                "keiba_prediction_lab.pipeline.save_frozen_bet_type_forecast",
                 side_effect=OSError("simulated write failure"),
             ):
                 with self.assertRaisesRegex(OSError, "simulated write failure"):
