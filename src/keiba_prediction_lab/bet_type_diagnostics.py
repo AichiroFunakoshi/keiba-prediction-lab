@@ -349,7 +349,7 @@ def diagnose_bet_type_evaluation_artifacts(
         for race_id in comparison.race_ids
     ):
         raise ValueError(
-            "diagnostics require schema 1.2 reports with race_date"
+            "diagnostics require schema 1.2 or later with race_date"
         )
     baseline_tickets = {
         (ticket.race_id, ticket.bet_type): ticket

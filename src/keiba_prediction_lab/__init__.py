@@ -64,6 +64,13 @@ from .bet_type_settlement import (
     save_bet_type_race_payouts,
     settle_frozen_bet_type_candidates,
 )
+from .bet_type_segment_diagnostics import (
+    BetTypeSegmentContribution,
+    BetTypeSegmentDimension,
+    BetTypeSegmentReport,
+    diagnose_bet_type_segment_report_files,
+    diagnose_bet_type_segments,
+)
 from .calibration import (
     CalibrationRow,
     TemperatureCalibratedModel,
@@ -142,6 +149,12 @@ from .pace import (
     build_pace_conditioned_forecast,
     rank_pace_conditioned_trifectas,
 )
+from .race_context import (
+    RACE_CONTEXT_SCHEMA_VERSION,
+    RaceContext,
+    load_race_context,
+    save_race_context,
+)
 from .pipeline import (
     PIPELINE_MANIFEST_SCHEMA_VERSION,
     PIPELINE_POLICY_VERSION,
@@ -197,6 +210,9 @@ __all__ = [
     "BetTypeContributionReport",
     "BetTypeDateContribution",
     "BetTypeRaceContribution",
+    "BetTypeSegmentContribution",
+    "BetTypeSegmentDimension",
+    "BetTypeSegmentReport",
     "BootstrapResamplingUnit",
     "BetType",
     "BetTypeEvaluationReport",
@@ -248,7 +264,9 @@ __all__ = [
     "RacePaceScenario",
     "RacePredictionBundle",
     "RacePerformance",
+    "RaceContext",
     "RunningStyle",
+    "RACE_CONTEXT_SCHEMA_VERSION",
     "Surface",
     "TargetRunner",
     "TemperatureCalibratedModel",
@@ -286,6 +304,8 @@ __all__ = [
     "compare_bet_type_evaluation_report_files",
     "diagnose_bet_type_evaluation_artifacts",
     "diagnose_bet_type_evaluation_report_files",
+    "diagnose_bet_type_segment_report_files",
+    "diagnose_bet_type_segments",
     "compare_trifecta_generators",
     "diagnose_segments",
     "evaluate_fixed_stake",
@@ -311,6 +331,7 @@ __all__ = [
     "load_bet_type_evaluation_artifact",
     "load_bet_type_race_payouts",
     "load_frozen_shadow_forecast",
+    "load_race_context",
     "post_position_baseline",
     "rank_pace_conditioned_trifectas",
     "rank_trifecta_combinations",
@@ -323,6 +344,7 @@ __all__ = [
     "save_bet_type_race_payouts",
     "save_frozen_shadow_forecast",
     "save_race_prediction_bundle",
+    "save_race_context",
     "settle_frozen_bet_type_candidates",
     "top1_accuracy",
     "top3_unordered_accuracy",

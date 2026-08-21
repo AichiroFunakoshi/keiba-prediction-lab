@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from dataclasses import replace
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from keiba_prediction_lab.bet_type_report import (
@@ -14,6 +14,8 @@ from keiba_prediction_lab.bet_type_report import (
 )
 from keiba_prediction_lab.domain import BetType, TicketResult
 from keiba_prediction_lab.evaluation import evaluate_ticket_results_by_bet_type
+from keiba_prediction_lab.features import Surface
+from keiba_prediction_lab.race_context import RaceContext
 
 
 def artifact() -> BetTypeEvaluationArtifact:
@@ -34,6 +36,19 @@ def artifact() -> BetTypeEvaluationArtifact:
             forecast_file_sha256=("a" if race_id == "race-1" else "b") * 64,
             payout_file_sha256=("c" if race_id == "race-1" else "d") * 64,
             race_date=date(2026, 8, 22 if race_id == "race-1" else 23),
+            context_file_sha256=(
+                "e" if race_id == "race-1" else "f"
+            ) * 64,
+            context=RaceContext(
+                race_id,
+                datetime(2026, 8, 22, 4, 0, tzinfo=timezone.utc),
+                "Tokyo" if race_id == "race-1" else "Kyoto",
+                Surface.TURF,
+                "good",
+                1600 if race_id == "race-1" else 2000,
+                "G1",
+                5,
+            ),
         )
         for race_id in race_ids
     )
@@ -110,6 +125,8 @@ class BetTypeReportTest(unittest.TestCase):
             envelope["schema_version"] = "1.1"
             for row in envelope["payload"]["inputs"]:
                 del row["race_date"]
+                del row["context_file_sha256"]
+                del row["context"]
             canonical = json.dumps(
                 envelope["payload"],
                 ensure_ascii=False,
@@ -126,6 +143,33 @@ class BetTypeReportTest(unittest.TestCase):
         self.assertEqual(loaded.report, original.report)
         self.assertEqual(loaded.tickets, original.tickets)
         self.assertTrue(all(row.race_date is None for row in loaded.inputs))
+
+    def test_loads_legacy_1_2_report_without_race_context(self) -> None:
+        original = artifact()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bet-types-evaluation.json"
+            save_bet_type_evaluation_artifact(original, path)
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            envelope["schema_version"] = "1.2"
+            for row in envelope["payload"]["inputs"]:
+                del row["context_file_sha256"]
+                del row["context"]
+            canonical = json.dumps(
+                envelope["payload"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            envelope["sha256"] = hashlib.sha256(
+                canonical.encode("utf-8")
+            ).hexdigest()
+            path.write_text(json.dumps(envelope), encoding="utf-8")
+
+            loaded = load_bet_type_evaluation_artifact(path)
+
+        self.assertEqual(loaded.report, original.report)
+        self.assertEqual(loaded.tickets, original.tickets)
+        self.assertTrue(all(row.context is None for row in loaded.inputs))
 
     def test_ticket_ledger_must_reproduce_summaries(self) -> None:
         original = artifact()
@@ -148,6 +192,19 @@ class BetTypeReportTest(unittest.TestCase):
                 replace(original.inputs[0], race_date=None),
             ) + original.inputs[1:]
             with self.assertRaisesRegex(ValueError, "every race_date"):
+                save_bet_type_evaluation_artifact(
+                    replace(original, inputs=inputs), path
+                )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "missing-context.json"
+            inputs = (
+                replace(
+                    original.inputs[0],
+                    context_file_sha256=None,
+                    context=None,
+                ),
+            ) + original.inputs[1:]
+            with self.assertRaisesRegex(ValueError, "every race context"):
                 save_bet_type_evaluation_artifact(
                     replace(original, inputs=inputs), path
                 )
@@ -196,6 +253,14 @@ class BetTypeReportTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unique race_id"):
             BetTypeEvaluationArtifact(
                 (original.inputs[0], original.inputs[0]), original.report
+            )
+        with self.assertRaisesRegex(ValueError, "same race_id"):
+            replace(
+                original.inputs[0],
+                context=replace(
+                    original.inputs[0].context,
+                    race_id="different-race",
+                ),
             )
 
     def test_rejects_internally_inconsistent_summary(self) -> None:
