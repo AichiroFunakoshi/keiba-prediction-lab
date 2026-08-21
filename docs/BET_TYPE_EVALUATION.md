@@ -49,4 +49,18 @@ CLIは両ファイルの改変検知とレースIDの一対一対応を確認し
 
 `load_bet_type_evaluation_artifact` はレポート自体のSHA-256、入力順、レースIDの重複、全券種が全レースを1点ずつ含むことを検証する。レースの指定順は集計結果と保存内容に影響しない。
 
+## 基準モデルとの対応比較
+
+基準モデルと候補モデルの評価レポートは、次のコマンドで比較できる。
+
+```bash
+PYTHONPATH=src python -m keiba_prediction_lab.cli compare-bet-type-reports \
+  reports/baseline.json \
+  reports/candidate.json
+```
+
+`compare_bet_type_evaluation_artifacts` は、両レポートのレースID集合が同一で、各レースの払戻ファイルSHA-256も同一である場合だけ比較する。予測ファイルSHA-256はモデルごとに異なってよい。これにより、異なるレース期間や異なる払戻結果を使った見かけ上の改善を拒否する。
+
+出力は全6馬券種について、候補−基準の的中率差、回収率差、最高払戻除外後の回収率差、最高1件への払戻依存度差をパーセントポイントで示す。馬券種をまたいだ合算値は作らない。
+
 この評価層は購入戦略を変更しない。実購入候補は引き続き、事前固定した三連単1点100円だけであり、他の馬券種は独立した研究評価として扱う。発走前の候補生成と固定方法は [BET_TYPE_SHADOW_FORECASTS.md](BET_TYPE_SHADOW_FORECASTS.md) に定める。

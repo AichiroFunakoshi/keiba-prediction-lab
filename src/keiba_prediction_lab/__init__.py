@@ -29,6 +29,12 @@ from .bet_type_report import (
     load_bet_type_evaluation_artifact,
     save_bet_type_evaluation_artifact,
 )
+from .bet_type_report_comparison import (
+    BetTypeEvaluationComparison,
+    BetTypeEvaluationDelta,
+    compare_bet_type_evaluation_artifacts,
+    compare_bet_type_evaluation_report_files,
+)
 from .bet_type_settlement import (
     BET_TYPE_PAYOUT_SCHEMA_VERSION,
     BetTypePayout,
@@ -169,6 +175,8 @@ __all__ = [
     "BetType",
     "BetTypeEvaluationReport",
     "BetTypeEvaluationArtifact",
+    "BetTypeEvaluationComparison",
+    "BetTypeEvaluationDelta",
     "BetTypeEvaluationInput",
     "BetTypeForecast",
     "BetTypePayout",
@@ -240,6 +248,8 @@ __all__ = [
     "calibration_summary",
     "confidence_bucket",
     "compare_frozen_trifecta_generators",
+    "compare_bet_type_evaluation_artifacts",
+    "compare_bet_type_evaluation_report_files",
     "compare_trifecta_generators",
     "diagnose_segments",
     "evaluate_fixed_stake",
