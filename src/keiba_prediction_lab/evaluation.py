@@ -46,6 +46,8 @@ class BetTypeEvaluationReport:
 
     def __post_init__(self) -> None:
         bet_types = [row.bet_type for row in self.summaries]
+        if any(not isinstance(bet_type, BetType) for bet_type in bet_types):
+            raise ValueError("summary bet types must be BetType values")
         if len(set(bet_types)) != len(bet_types):
             raise ValueError("bet type summaries must be unique")
         if set(bet_types) != set(BetType):

@@ -3,6 +3,7 @@ import unittest
 from keiba_prediction_lab.domain import BetType, TicketResult
 from keiba_prediction_lab.evaluation import (
     BetTypeEvaluationReport,
+    BetTypeSummary,
     evaluate_fixed_stake,
     evaluate_ticket_results_by_bet_type,
 )
@@ -120,6 +121,12 @@ class BetTypeEvaluationTest(unittest.TestCase):
         self.assertIn("最高払戻除外後", markdown)
         self.assertIn("上位3件", markdown)
         self.assertIn("上位5件", markdown)
+
+    def test_report_rejects_raw_string_bet_type(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must be BetType values"):
+            BetTypeEvaluationReport((
+                BetTypeSummary("win", evaluate_fixed_stake(())),  # type: ignore[arg-type]
+            ))
 
 
 if __name__ == "__main__":
