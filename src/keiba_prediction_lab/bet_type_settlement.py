@@ -128,8 +128,8 @@ def load_bet_type_race_payouts(path: str | Path) -> BetTypeRacePayouts:
     if digest != envelope.get("sha256"):
         raise ValueError("bet type payout integrity check failed")
 
-    race_id = payload["race_id"]
-    payouts = payload["payouts"]
+    race_id = payload.get("race_id")
+    payouts = payload.get("payouts")
     if not isinstance(race_id, str):
         raise ValueError("payout race_id must be a string")
     if not isinstance(payouts, list):
@@ -138,12 +138,20 @@ def load_bet_type_race_payouts(path: str | Path) -> BetTypeRacePayouts:
     for row in payouts:
         if not isinstance(row, dict):
             raise ValueError("each payout must be an object")
+        bet_type = row.get("bet_type")
+        selection = row.get("selection")
+        if not isinstance(bet_type, str):
+            raise ValueError("payout bet_type must be a string")
+        if not isinstance(selection, list) or any(
+            not isinstance(horse_id, str) for horse_id in selection
+        ):
+            raise ValueError("payout selection must be an array of strings")
         rows.append(
             BetTypePayout(
                 race_id=race_id,
-                bet_type=BetType(row["bet_type"]),
-                selection=tuple(row["selection"]),
-                payout_yen=row["payout_yen"],
+                bet_type=BetType(bet_type),
+                selection=tuple(selection),
+                payout_yen=row.get("payout_yen"),
             )
         )
     return BetTypeRacePayouts(race_id, tuple(rows))
