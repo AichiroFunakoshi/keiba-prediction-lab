@@ -21,6 +21,9 @@ from .bet_type_report import (
 from .bet_type_report_comparison import (
     compare_bet_type_evaluation_report_files,
 )
+from .bet_type_segment_diagnostics import (
+    diagnose_bet_type_segment_report_files,
+)
 from .data_audit import audit_standard_csv, load_source_registry
 
 
@@ -89,6 +92,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--format", choices=("markdown", "json"), default="markdown"
     )
     diagnose.add_argument("--top-races", type=int, default=5)
+
+    segments = subparsers.add_parser(
+        "diagnose-bet-type-segments",
+        help="compare bet types across fixed pre-race context segments",
+    )
+    segments.add_argument("baseline", type=Path)
+    segments.add_argument("candidate", type=Path)
+    segments.add_argument(
+        "--format", choices=("markdown", "json"), default="markdown"
+    )
     return parser
 
 
@@ -145,6 +158,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.format == "json"
             else report.to_markdown(top_races=args.top_races)
         )
+        print(output, end="")
+        return 0
+
+    if args.command == "diagnose-bet-type-segments":
+        report = diagnose_bet_type_segment_report_files(
+            args.baseline, args.candidate
+        )
+        output = report.to_json() if args.format == "json" else report.to_markdown()
         print(output, end="")
         return 0
 

@@ -323,7 +323,7 @@ def bootstrap_bet_type_evaluation_artifacts(
             for race_id in comparison.race_ids
         ):
             raise ValueError(
-                "race-date bootstrap requires schema 1.2 reports with race_date"
+                "race-date bootstrap requires schema 1.2 or later with race_date"
             )
         if any(
             baseline_dates[race_id] != candidate_dates[race_id]

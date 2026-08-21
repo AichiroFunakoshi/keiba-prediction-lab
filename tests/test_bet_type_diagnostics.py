@@ -130,7 +130,7 @@ class BetTypeDiagnosticsTest(unittest.TestCase):
             baseline,
             inputs=tuple(replace(row, race_date=None) for row in baseline.inputs),
         )
-        with self.assertRaisesRegex(ValueError, "schema 1.2"):
+        with self.assertRaisesRegex(ValueError, "race_date"):
             diagnose_bet_type_evaluation_artifacts(without_dates, candidate)
 
         report = diagnose_bet_type_evaluation_artifacts(baseline, candidate)

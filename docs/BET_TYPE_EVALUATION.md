@@ -36,7 +36,7 @@
 
 `save_bet_type_race_payouts` は、1レース分の払戻表を `bet-types-payouts.json` として新規保存する。既存ファイルは上書きせず、スキーマ版 `1.0` と正規化した内容のSHA-256を同梱する。`load_bet_type_race_payouts` は決済前にスキーマ版とハッシュを検証する。
 
-評価対象の各ディレクトリには、発走前に固定した `bet-types-shadow.json` と、結果確定後に作成した `bet-types-payouts.json` を置く。複数レースは次のコマンドでまとめて評価できる。
+評価対象の各ディレクトリには、発走前に固定した `bet-types-shadow.json` と `race-context.json`、結果確定後に作成した `bet-types-payouts.json` を置く。`race-context.json` はスキーマ `1.0` と内容のSHA-256を持ち、レースID、取得時刻、競馬場、コース種別、馬場、距離、クラス、頭数を保存する。取得時刻が発走予定時刻以後の条件、予測と異なるレースID・頭数、改変されたファイルは拒否する。複数レースは次のコマンドでまとめて評価できる。
 
 ```bash
 PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types \
@@ -45,9 +45,9 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types \
   --report reports/bet-types-evaluation.json
 ```
 
-CLIは両ファイルの改変検知とレースIDの一対一対応を確認し、券種別のMarkdown表を標準出力へ出す。`--report` を指定すると、レースID順に正規化した入力ファイルのSHA-256、発走予定時刻から得た開催日、構造化集計、全レース×6券種の決済台帳を、スキーマ版 `1.2` の `bet-types-evaluation.json` へ保存する。既存レポートは上書きしない。時刻や入力ディレクトリの絶対パスは保存しないため、同じ入力内容からは同じレポート内容を再生成できる。
+CLIは3ファイルの改変検知とレースIDの一対一対応を確認し、券種別のMarkdown表を標準出力へ出す。`--report` を指定すると、レースID順に正規化した3入力ファイルのSHA-256、発走予定時刻から得た開催日、レース条件、構造化集計、全レース×6券種の決済台帳を、スキーマ版 `1.3` の `bet-types-evaluation.json` へ保存する。既存レポートは上書きしない。入力ディレクトリの絶対パスは保存しないため、同じ入力内容からは同じレポート内容を再生成できる。
 
-`load_bet_type_evaluation_artifact` はレポート自体のSHA-256、入力順、レースIDの重複、全券種が全レースを1点ずつ含むこと、決済台帳から再計算した集計が保存集計と一致することを検証する。旧スキーマ `1.0` と `1.1` は読込可能だが、それぞれ決済台帳または開催日を持たないため新規保存はできない。レースの指定順は集計結果と保存内容に影響しない。
+`load_bet_type_evaluation_artifact` はレポート自体のSHA-256、入力順、レースIDの重複、全券種が全レースを1点ずつ含むこと、決済台帳から再計算した集計が保存集計と一致することを検証する。旧スキーマ `1.0`、`1.1`、`1.2` は読込可能だが、それぞれ決済台帳、開催日、レース条件の一部または全部を持たないため新規保存はできない。レースの指定順は集計結果と保存内容に影響しない。
 
 ## 基準モデルとの対応比較
 
@@ -77,7 +77,7 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli bootstrap-bet-type-reports \
 
 各反復ではレースIDを復元抽出し、抽出した同じレース列を基準・候補の両方へ適用する。全券種にも同じ抽出列を使う。既定は1万回、固定シード0、95%パーセンタイル区間であり、同じ入力と設定から同じ結果を再生成できる。
 
-スキーマ `1.2` の開催日を持つレポートでは、同日内の相関を保つクラスターブートストラップも選択できる。
+スキーマ `1.2` 以降の開催日を持つレポートでは、同日内の相関を保つクラスターブートストラップも選択できる。
 
 ```bash
 PYTHONPATH=src python -m keiba_prediction_lab.cli bootstrap-bet-type-reports \
@@ -105,7 +105,7 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli diagnose-bet-type-reports \
   --top-races 5
 ```
 
-スキーマ `1.2` の同一レース・同一払戻レポートを使い、全6券種を混ぜずに次を出力する。
+スキーマ `1.2` 以降の同一レース・同一払戻レポートを使い、全6券種を混ぜずに次を出力する。
 
 - 各レースの両方外れ、基準のみ的中、候補のみ的中、両方的中
 - 各レースの候補−基準の払戻差
@@ -116,5 +116,17 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli diagnose-bet-type-reports \
 `--format json` を指定すると全レース行と開催日集計を機械可読形式で出力する。`--top-races` はMarkdown表示だけを制限し、JSONや内部集計から行を削除しない。
 
 この診断は、高配当依存や特定開催日への偏りなど、次に確認すべき場所を示す。払戻差の原因を説明するものでも、統計的有意差やモデル採用可否を判定するものでもない。
+
+## レース条件別の寄与診断
+
+スキーマ `1.3` の同一レース・同一払戻・同一条件レポートは、発走前に固定した条件でも分解できる。
+
+```bash
+PYTHONPATH=src python -m keiba_prediction_lab.cli diagnose-bet-type-segments \
+  reports/baseline.json \
+  reports/candidate.json
+```
+
+競馬場、コース種別、馬場、距離帯、クラス、頭数帯の各値について、6券種を混ぜずにレース数、的中数、的中率差、払戻差、回収率差を出力する。`--format json` も利用できる。各部分集団は探索的診断であり、多重比較を補正しない。条件は両モデルで共通のレース事実だけを使い、モデル固有の信頼度はこの共通条件ファイルへ混ぜない。
 
 この評価層は購入戦略を変更しない。実購入候補は引き続き、事前固定した三連単1点100円だけであり、他の馬券種は独立した研究評価として扱う。発走前の候補生成と固定方法は [BET_TYPE_SHADOW_FORECASTS.md](BET_TYPE_SHADOW_FORECASTS.md) に定める。

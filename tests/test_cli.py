@@ -22,6 +22,8 @@ from keiba_prediction_lab.cli import main
 from keiba_prediction_lab.data_audit import sha256_file
 from keiba_prediction_lab.domain import BetType, PredictionRecord
 from keiba_prediction_lab.frozen import PredictionPhase
+from keiba_prediction_lab.features import Surface
+from keiba_prediction_lab.race_context import RaceContext, save_race_context
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +31,11 @@ UTC = timezone.utc
 
 
 def _write_race_bundle(
-    directory: Path, race_id: str, hit_type: BetType
+    directory: Path,
+    race_id: str,
+    hit_type: BetType,
+    *,
+    context_observed_at: datetime | None = None,
 ) -> None:
     race_day = 22 if race_id == "race-1" else 23
     predicted_at = datetime(2026, 8, race_day, 5, 0, tzinfo=UTC)
@@ -96,9 +102,37 @@ def _write_race_bundle(
         BetTypeRacePayouts(race_id, tuple(rows)),
         directory / "bet-types-payouts.json",
     )
+    save_race_context(
+        RaceContext(
+            race_id,
+            context_observed_at or predicted_at,
+            "Tokyo" if race_id == "race-1" else "Kyoto",
+            Surface.TURF,
+            "good",
+            1600 if race_id == "race-1" else 2000,
+            "G1",
+            len(predictions),
+        ),
+        directory / "race-context.json",
+    )
 
 
 class CliTest(unittest.TestCase):
+    def test_evaluation_rejects_context_observed_after_start(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory) / "race-1"
+            _write_race_bundle(
+                directory,
+                "race-1",
+                BetType.WIN,
+                context_observed_at=datetime(
+                    2026, 8, 22, 8, 0, tzinfo=UTC
+                ),
+            )
+
+            with self.assertRaisesRegex(ValueError, "before scheduled_at"):
+                main(["evaluate-bet-types", str(directory)])
+
     def test_evaluate_bet_types_batches_race_directories(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -167,12 +201,22 @@ class CliTest(unittest.TestCase):
                     "--format",
                     "json",
                 ])
+            segments_output = io.StringIO()
+            with contextlib.redirect_stdout(segments_output):
+                segments_exit_code = main([
+                    "diagnose-bet-type-segments",
+                    str(report_path),
+                    str(reordered_report_path),
+                    "--format",
+                    "json",
+                ])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(reordered_exit_code, 0)
         self.assertEqual(comparison_exit_code, 0)
         self.assertEqual(bootstrap_exit_code, 0)
         self.assertEqual(diagnostics_exit_code, 0)
+        self.assertEqual(segments_exit_code, 0)
         self.assertTrue(reports_match)
         self.assertEqual(reordered_output.getvalue(), output.getvalue())
         self.assertIn("# 馬券種別・対応比較", comparison_output.getvalue())
@@ -191,6 +235,12 @@ class CliTest(unittest.TestCase):
         diagnostics = json.loads(diagnostics_output.getvalue())
         self.assertEqual(diagnostics["race_count"], 2)
         self.assertEqual(len(diagnostics["race_rows"]), 12)
+        segments = json.loads(segments_output.getvalue())
+        self.assertEqual(segments["race_count"], 2)
+        self.assertTrue(any(
+            row["dimension"] == "venue" and row["value"] == "Tokyo"
+            for row in segments["rows"]
+        ))
         markdown = output.getvalue()
         self.assertIn("# 馬券種別・固定100円評価", markdown)
         self.assertEqual(
@@ -198,6 +248,7 @@ class CliTest(unittest.TestCase):
             ("race-1", "race-2"),
         )
         self.assertEqual(len(artifact.tickets), 12)
+        self.assertTrue(all(row.context is not None for row in artifact.inputs))
         self.assertEqual(
             tuple(row.race_date.isoformat() for row in artifact.inputs),
             ("2026-08-22", "2026-08-23"),

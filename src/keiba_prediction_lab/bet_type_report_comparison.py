@@ -133,6 +133,20 @@ def compare_bet_type_evaluation_artifacts(
             raise ValueError(
                 "paired artifacts must use identical race_date for every race"
             )
+        baseline_context = baseline_inputs[race_id].context
+        candidate_context = candidate_inputs[race_id].context
+        if (
+            baseline_context is not None
+            and candidate_context is not None
+            and (
+                baseline_context != candidate_context
+                or baseline_inputs[race_id].context_file_sha256
+                != candidate_inputs[race_id].context_file_sha256
+            )
+        ):
+            raise ValueError(
+                "paired artifacts must use identical race context for every race"
+            )
 
     race_ids = tuple(sorted(baseline_inputs))
     deltas = tuple(

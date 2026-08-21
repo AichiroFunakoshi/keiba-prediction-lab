@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +21,14 @@ from .evaluation import (
     FixedStakeSummary,
     evaluate_ticket_results_by_bet_type,
 )
+from .features import Surface
+from .race_context import RaceContext, load_race_context
 
 
-BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION = "1.2"
+BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION = "1.3"
 _LEGACY_SCHEMA_VERSION_WITHOUT_TICKETS = "1.0"
 _LEGACY_SCHEMA_VERSION_WITHOUT_RACE_DATES = "1.1"
+_LEGACY_SCHEMA_VERSION_WITHOUT_RACE_CONTEXT = "1.2"
 _SHA256_LENGTH = 64
 _UNORDERED_BET_TYPES = frozenset((BetType.QUINELLA, BetType.TRIO))
 
@@ -44,6 +47,8 @@ class BetTypeEvaluationInput:
     forecast_file_sha256: str
     payout_file_sha256: str
     race_date: date | None = None
+    context_file_sha256: str | None = None
+    context: RaceContext | None = None
 
     def __post_init__(self) -> None:
         if not self.race_id.strip():
@@ -54,6 +59,19 @@ class BetTypeEvaluationInput:
             raise ValueError("payout_file_sha256 must be lowercase SHA-256")
         if self.race_date is not None and type(self.race_date) is not date:
             raise ValueError("race_date must be a date")
+        if (self.context_file_sha256 is None) != (self.context is None):
+            raise ValueError(
+                "context_file_sha256 and context must both be present or absent"
+            )
+        if self.context_file_sha256 is not None and not _is_sha256(
+            self.context_file_sha256
+        ):
+            raise ValueError("context_file_sha256 must be lowercase SHA-256")
+        if self.context is not None:
+            if not isinstance(self.context, RaceContext):
+                raise ValueError("evaluation context must be a RaceContext value")
+            if self.context.race_id != self.race_id:
+                raise ValueError("evaluation context must have the same race_id")
 
 
 @dataclass(frozen=True)
@@ -186,23 +204,36 @@ def evaluate_bet_type_race_directories(
     for directory in race_directories:
         forecast_path = directory / "bet-types-shadow.json"
         payout_path = directory / "bet-types-payouts.json"
+        context_path = directory / "race-context.json"
         forecast_hash = sha256_file(forecast_path)
         payout_hash = sha256_file(payout_path)
+        context_hash = sha256_file(context_path)
         snapshot = load_frozen_bet_type_forecast(forecast_path)
         payouts = load_bet_type_race_payouts(payout_path)
+        context = load_race_context(context_path)
         if (
             forecast_hash != sha256_file(forecast_path)
             or payout_hash != sha256_file(payout_path)
+            or context_hash != sha256_file(context_path)
         ):
             raise ValueError("evaluation input changed while it was being loaded")
         if snapshot.forecast.race_id != payouts.race_id:
             raise ValueError("forecast and payout table must have the same race_id")
+        if context.race_id != snapshot.forecast.race_id:
+            raise ValueError("race context must have the same race_id")
+        if context.observed_at >= snapshot.scheduled_at:
+            raise ValueError("race context must be observed before scheduled_at")
+        runner_count = len(snapshot.forecast.for_bet_type(BetType.WIN))
+        if context.field_size != runner_count:
+            raise ValueError("race context field_size must match forecast runners")
         loaded.append((
             snapshot.forecast.race_id,
             snapshot,
             payouts,
             forecast_hash,
             payout_hash,
+            context_hash,
+            context,
         ))
 
     loaded.sort(key=lambda row: row[0])
@@ -212,12 +243,22 @@ def evaluate_bet_type_race_directories(
             forecast_hash,
             payout_hash,
             snapshot.scheduled_at.date(),
+            context_hash,
+            context,
         )
-        for race_id, snapshot, _, forecast_hash, payout_hash in loaded
+        for (
+            race_id,
+            snapshot,
+            _,
+            forecast_hash,
+            payout_hash,
+            context_hash,
+            context,
+        ) in loaded
     )
     tickets = tuple(
         ticket
-        for _, snapshot, payouts, _, _ in loaded
+        for _, snapshot, payouts, _, _, _, _ in loaded
         for ticket in settle_frozen_bet_type_candidates(snapshot, payouts)
     )
     report = evaluate_ticket_results_by_bet_type(tickets)
@@ -250,6 +291,8 @@ def _payload(artifact: BetTypeEvaluationArtifact) -> dict[str, object]:
                 "forecast_file_sha256": row.forecast_file_sha256,
                 "payout_file_sha256": row.payout_file_sha256,
                 "race_date": row.race_date.isoformat() if row.race_date else None,
+                "context_file_sha256": row.context_file_sha256,
+                "context": row.context.to_dict() if row.context else None,
             }
             for row in artifact.inputs
         ],
@@ -283,6 +326,8 @@ def save_bet_type_evaluation_artifact(
         raise ValueError("new evaluation artifacts must contain a ticket ledger")
     if any(row.race_date is None for row in artifact.inputs):
         raise ValueError("new evaluation artifacts must contain every race_date")
+    if any(row.context is None for row in artifact.inputs):
+        raise ValueError("new evaluation artifacts must contain every race context")
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = _payload(artifact)
@@ -350,6 +395,7 @@ def load_bet_type_evaluation_artifact(
     supported_versions = (
         _LEGACY_SCHEMA_VERSION_WITHOUT_TICKETS,
         _LEGACY_SCHEMA_VERSION_WITHOUT_RACE_DATES,
+        _LEGACY_SCHEMA_VERSION_WITHOUT_RACE_CONTEXT,
         BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION,
     )
     if schema_version not in supported_versions:
@@ -375,12 +421,36 @@ def load_bet_type_evaluation_artifact(
     inputs = []
     for row in input_payloads:
         race_date = None
-        if schema_version == BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION:
+        if schema_version in (
+            _LEGACY_SCHEMA_VERSION_WITHOUT_RACE_CONTEXT,
+            BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION,
+        ):
             race_date_text = _required(row, "race_date", str)
             try:
                 race_date = date.fromisoformat(race_date_text)
             except ValueError as error:
                 raise ValueError("evaluation race_date must be ISO 8601") from error
+        context_hash = None
+        context = None
+        if schema_version == BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION:
+            context_hash = _required(row, "context_file_sha256", str)
+            context_payload = row.get("context")
+            if not isinstance(context_payload, dict):
+                raise ValueError("evaluation context must be an object")
+            context = RaceContext(
+                race_id=_required(context_payload, "race_id", str),
+                observed_at=datetime.fromisoformat(
+                    _required(context_payload, "observed_at", str)
+                ),
+                venue=_required(context_payload, "venue", str),
+                surface=Surface(_required(context_payload, "surface", str)),
+                track_condition=_required(
+                    context_payload, "track_condition", str
+                ),
+                distance_m=_required(context_payload, "distance_m", int),
+                race_class=_required(context_payload, "race_class", str),
+                field_size=_required(context_payload, "field_size", int),
+            )
         inputs.append(
             BetTypeEvaluationInput(
                 race_id=_required(row, "race_id", str),
@@ -391,6 +461,8 @@ def load_bet_type_evaluation_artifact(
                     row, "payout_file_sha256", str
                 ),
                 race_date=race_date,
+                context_file_sha256=context_hash,
+                context=context,
             )
         )
     input_rows = tuple(inputs)
