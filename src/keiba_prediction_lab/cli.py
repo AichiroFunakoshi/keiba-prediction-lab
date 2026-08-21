@@ -11,6 +11,9 @@ from .bet_type_bootstrap import (
     DEFAULT_BOOTSTRAP_SEED,
     bootstrap_bet_type_evaluation_report_files,
 )
+from .bet_type_diagnostics import (
+    diagnose_bet_type_evaluation_report_files,
+)
 from .bet_type_report import (
     evaluate_bet_type_race_directories,
     save_bet_type_evaluation_artifact,
@@ -75,6 +78,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=BootstrapResamplingUnit.RACE.value,
         help="resample paired races individually or as race-date clusters",
     )
+
+    diagnose = subparsers.add_parser(
+        "diagnose-bet-type-reports",
+        help="locate paired payout differences by race and race date",
+    )
+    diagnose.add_argument("baseline", type=Path)
+    diagnose.add_argument("candidate", type=Path)
+    diagnose.add_argument(
+        "--format", choices=("markdown", "json"), default="markdown"
+    )
+    diagnose.add_argument("--top-races", type=int, default=5)
     return parser
 
 
@@ -120,6 +134,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             resampling_unit=BootstrapResamplingUnit(args.resampling_unit),
         )
         print(report.to_markdown(), end="")
+        return 0
+
+    if args.command == "diagnose-bet-type-reports":
+        report = diagnose_bet_type_evaluation_report_files(
+            args.baseline, args.candidate
+        )
+        output = (
+            report.to_json()
+            if args.format == "json"
+            else report.to_markdown(top_races=args.top_races)
+        )
+        print(output, end="")
         return 0
 
     report = audit_standard_csv(args.path)

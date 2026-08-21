@@ -33,6 +33,14 @@ from .bet_type_forecast import (
     load_frozen_bet_type_forecast,
     save_frozen_bet_type_forecast,
 )
+from .bet_type_diagnostics import (
+    BetTypeContributionReport,
+    BetTypeDateContribution,
+    BetTypeRaceContribution,
+    HitTransition,
+    diagnose_bet_type_evaluation_artifacts,
+    diagnose_bet_type_evaluation_report_files,
+)
 from .bet_type_report import (
     BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION,
     BetTypeEvaluationArtifact,
@@ -186,6 +194,9 @@ __all__ = [
     "BET_TYPE_EVALUATION_ARTIFACT_SCHEMA_VERSION",
     "BetTypeBootstrapReport",
     "BetTypeBootstrapSummary",
+    "BetTypeContributionReport",
+    "BetTypeDateContribution",
+    "BetTypeRaceContribution",
     "BootstrapResamplingUnit",
     "BetType",
     "BetTypeEvaluationReport",
@@ -220,6 +231,7 @@ __all__ = [
     "FrozenRaceResult",
     "FrozenShadowForecast",
     "FrozenTrifectaTicket",
+    "HitTransition",
     "FeatureRow",
     "PACE_GENERATOR_VERSION",
     "MINIMUM_RECOMMENDED_RACES",
@@ -272,6 +284,8 @@ __all__ = [
     "compare_frozen_trifecta_generators",
     "compare_bet_type_evaluation_artifacts",
     "compare_bet_type_evaluation_report_files",
+    "diagnose_bet_type_evaluation_artifacts",
+    "diagnose_bet_type_evaluation_report_files",
     "compare_trifecta_generators",
     "diagnose_segments",
     "evaluate_fixed_stake",
