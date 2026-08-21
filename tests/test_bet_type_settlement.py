@@ -155,6 +155,13 @@ class BetTypeSettlementTest(unittest.TestCase):
         self.assertEqual(tickets[0].payout_yen, 250)
 
     def test_rejects_noncanonical_and_duplicate_payouts(self) -> None:
+        with self.assertRaisesRegex(ValueError, "selection must be a tuple"):
+            BetTypePayout(
+                "race-1",
+                BetType.WIN,
+                ["horse-1"],  # type: ignore[arg-type]
+                250,
+            )
         with self.assertRaisesRegex(ValueError, "canonical order"):
             BetTypePayout(
                 "race-1",
@@ -165,6 +172,15 @@ class BetTypeSettlementTest(unittest.TestCase):
         row = BetTypePayout("race-1", BetType.WIN, ("horse-1",), 250)
         with self.assertRaisesRegex(ValueError, "must be unique"):
             BetTypeRacePayouts("race-1", (row, row))
+
+    def test_rejects_mutable_payout_container(self) -> None:
+        complete = payout_table(snapshot("race-1"))
+
+        with self.assertRaisesRegex(ValueError, "payouts must be a tuple"):
+            BetTypeRacePayouts(
+                complete.race_id,
+                list(complete.payouts),  # type: ignore[arg-type]
+            )
 
     def test_rejects_incomplete_or_invalid_payout_tables(self) -> None:
         frozen = snapshot("race-1")

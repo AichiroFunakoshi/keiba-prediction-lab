@@ -28,6 +28,8 @@ class BetTypePayout:
             raise ValueError("race_id must not be empty")
         if not isinstance(self.bet_type, BetType):
             raise ValueError("bet_type must be a BetType value")
+        if not isinstance(self.selection, tuple):
+            raise ValueError("selection must be a tuple")
         if len(self.selection) != self.bet_type.selection_size:
             raise ValueError(
                 f"{self.bet_type.value} requires "
@@ -56,6 +58,8 @@ class BetTypeRacePayouts:
     def __post_init__(self) -> None:
         if not self.race_id.strip():
             raise ValueError("race_id must not be empty")
+        if not isinstance(self.payouts, tuple):
+            raise ValueError("payouts must be a tuple")
         if not self.payouts:
             raise ValueError("payouts must not be empty")
         if any(row.race_id != self.race_id for row in self.payouts):
