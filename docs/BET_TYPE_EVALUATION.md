@@ -41,9 +41,12 @@
 ```bash
 PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types \
   outputs/2026-08-22-race-1 \
-  outputs/2026-08-22-race-2
+  outputs/2026-08-22-race-2 \
+  --report reports/bet-types-evaluation.json
 ```
 
-CLIは両ファイルの改変検知とレースIDの一対一対応を確認し、券種別のMarkdown表を標準出力へ出す。レースの指定順は集計結果に影響しない。
+CLIは両ファイルの改変検知とレースIDの一対一対応を確認し、券種別のMarkdown表を標準出力へ出す。`--report` を指定すると、レースID順に正規化した入力ファイルのSHA-256と構造化集計を、スキーマ版 `1.0` の `bet-types-evaluation.json` へ保存する。既存レポートは上書きしない。時刻や入力ディレクトリの絶対パスは保存しないため、同じ入力内容からは同じレポート内容を再生成できる。
+
+`load_bet_type_evaluation_artifact` はレポート自体のSHA-256、入力順、レースIDの重複、全券種が全レースを1点ずつ含むことを検証する。レースの指定順は集計結果と保存内容に影響しない。
 
 この評価層は購入戦略を変更しない。実購入候補は引き続き、事前固定した三連単1点100円だけであり、他の馬券種は独立した研究評価として扱う。発走前の候補生成と固定方法は [BET_TYPE_SHADOW_FORECASTS.md](BET_TYPE_SHADOW_FORECASTS.md) に定める。

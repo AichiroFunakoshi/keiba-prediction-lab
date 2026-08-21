@@ -10,12 +10,16 @@ from keiba_prediction_lab.bet_type_forecast import (
     freeze_bet_type_forecast,
     save_frozen_bet_type_forecast,
 )
+from keiba_prediction_lab.bet_type_report import (
+    load_bet_type_evaluation_artifact,
+)
 from keiba_prediction_lab.bet_type_settlement import (
     BetTypePayout,
     BetTypeRacePayouts,
     save_bet_type_race_payouts,
 )
 from keiba_prediction_lab.cli import main
+from keiba_prediction_lab.data_audit import sha256_file
 from keiba_prediction_lab.domain import BetType, PredictionRecord
 from keiba_prediction_lab.frozen import PredictionPhase
 
@@ -99,6 +103,8 @@ class CliTest(unittest.TestCase):
             root = Path(temporary_directory)
             first = root / "race-1"
             second = root / "race-2"
+            report_path = root / "bet-types-evaluation.json"
+            reordered_report_path = root / "bet-types-evaluation-reordered.json"
             _write_race_bundle(first, "race-1", BetType.WIN)
             _write_race_bundle(second, "race-2", BetType.EXACTA)
             output = io.StringIO()
@@ -108,11 +114,53 @@ class CliTest(unittest.TestCase):
                     "evaluate-bet-types",
                     str(second),
                     str(first),
+                    "--report",
+                    str(report_path),
                 ])
 
+            artifact = load_bet_type_evaluation_artifact(report_path)
+            first_forecast_hash = sha256_file(
+                first / "bet-types-shadow.json"
+            )
+            first_payout_hash = sha256_file(
+                first / "bet-types-payouts.json"
+            )
+            reordered_output = io.StringIO()
+            with contextlib.redirect_stdout(reordered_output):
+                reordered_exit_code = main([
+                    "evaluate-bet-types",
+                    str(first),
+                    str(second),
+                    "--report",
+                    str(reordered_report_path),
+                ])
+            reports_match = (
+                report_path.read_bytes() == reordered_report_path.read_bytes()
+            )
+
         self.assertEqual(exit_code, 0)
+        self.assertEqual(reordered_exit_code, 0)
+        self.assertTrue(reports_match)
+        self.assertEqual(reordered_output.getvalue(), output.getvalue())
         markdown = output.getvalue()
         self.assertIn("# 馬券種別・固定100円評価", markdown)
+        self.assertEqual(
+            tuple(row.race_id for row in artifact.inputs),
+            ("race-1", "race-2"),
+        )
+        self.assertTrue(all(
+            len(row.forecast_file_sha256) == 64
+            and len(row.payout_file_sha256) == 64
+            for row in artifact.inputs
+        ))
+        self.assertEqual(
+            artifact.inputs[0].forecast_file_sha256,
+            first_forecast_hash,
+        )
+        self.assertEqual(
+            artifact.inputs[0].payout_file_sha256,
+            first_payout_hash,
+        )
         self.assertIn("| 単勝 | 2 | 1 | 50.0% | 200円 | 250円 | 125.0% |", markdown)
         self.assertIn(
             "| 馬単 | 2 | 1 | 50.0% | 200円 | 1,320円 | 660.0% |",
