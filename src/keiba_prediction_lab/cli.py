@@ -5,6 +5,11 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
+from .bet_type_bootstrap import (
+    DEFAULT_BOOTSTRAP_SAMPLES,
+    DEFAULT_BOOTSTRAP_SEED,
+    bootstrap_bet_type_evaluation_report_files,
+)
 from .bet_type_report import (
     evaluate_bet_type_race_directories,
     save_bet_type_evaluation_artifact,
@@ -52,6 +57,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     compare.add_argument("baseline", type=Path)
     compare.add_argument("candidate", type=Path)
+
+    bootstrap = subparsers.add_parser(
+        "bootstrap-bet-type-reports",
+        help="estimate paired race-level intervals for two evaluation reports",
+    )
+    bootstrap.add_argument("baseline", type=Path)
+    bootstrap.add_argument("candidate", type=Path)
+    bootstrap.add_argument(
+        "--samples", type=int, default=DEFAULT_BOOTSTRAP_SAMPLES
+    )
+    bootstrap.add_argument("--seed", type=int, default=DEFAULT_BOOTSTRAP_SEED)
     return parser
 
 
@@ -86,6 +102,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.baseline, args.candidate
         )
         print(comparison.to_markdown(), end="")
+        return 0
+
+    if args.command == "bootstrap-bet-type-reports":
+        report = bootstrap_bet_type_evaluation_report_files(
+            args.baseline,
+            args.candidate,
+            samples=args.samples,
+            seed=args.seed,
+        )
+        print(report.to_markdown(), end="")
         return 0
 
     report = audit_standard_csv(args.path)

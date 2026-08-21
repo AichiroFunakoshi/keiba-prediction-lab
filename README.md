@@ -39,9 +39,10 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli list-sources
 PYTHONPATH=src python -m keiba_prediction_lab.cli audit-csv tests/fixtures/synthetic_race_results.csv
 PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types outputs/race-1 outputs/race-2 --report reports/bet-types-evaluation.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli compare-bet-type-reports reports/baseline.json reports/candidate.json
+PYTHONPATH=src python -m keiba_prediction_lab.cli bootstrap-bet-type-reports reports/baseline.json reports/candidate.json --samples 10000 --seed 0
 ```
 
-CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、日付・着順の異常をJSONで出力します。`evaluate-bet-types` は各ディレクトリの事前固定予測と払戻表を検証し、全6馬券種を混ぜずにMarkdownで一括評価します。`--report` を指定すると、入力ファイルのSHA-256、構造化集計、レース別決済台帳を上書き不可のJSONにも保存します。`compare-bet-type-reports` は同一レース・同一払戻を確認してから、基準モデルと候補モデルの差を券種別に表示します。
+CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、日付・着順の異常をJSONで出力します。`evaluate-bet-types` は各ディレクトリの事前固定予測と払戻表を検証し、全6馬券種を混ぜずにMarkdownで一括評価します。`--report` を指定すると、入力ファイルのSHA-256、構造化集計、レース別決済台帳を上書き不可のJSONにも保存します。`compare-bet-type-reports` は同一レース・同一払戻を確認してから基準モデルとの差を表示し、`bootstrap-bet-type-reports` はレース対応95%区間を固定シードで推定します。
 
 ## 公開データに関する方針
 

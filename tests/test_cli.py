@@ -144,10 +144,22 @@ class CliTest(unittest.TestCase):
                     str(report_path),
                     str(reordered_report_path),
                 ])
+            bootstrap_output = io.StringIO()
+            with contextlib.redirect_stdout(bootstrap_output):
+                bootstrap_exit_code = main([
+                    "bootstrap-bet-type-reports",
+                    str(report_path),
+                    str(reordered_report_path),
+                    "--samples",
+                    "100",
+                    "--seed",
+                    "7",
+                ])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(reordered_exit_code, 0)
         self.assertEqual(comparison_exit_code, 0)
+        self.assertEqual(bootstrap_exit_code, 0)
         self.assertTrue(reports_match)
         self.assertEqual(reordered_output.getvalue(), output.getvalue())
         self.assertIn("# 馬券種別・対応比較", comparison_output.getvalue())
@@ -155,6 +167,11 @@ class CliTest(unittest.TestCase):
             "| 単勝 | 1/2 → 1/2 | +0.0pt | +0.0pt |",
             comparison_output.getvalue(),
         )
+        self.assertIn(
+            "# 馬券種別・対応ブートストラップ",
+            bootstrap_output.getvalue(),
+        )
+        self.assertIn("50.0%", bootstrap_output.getvalue())
         markdown = output.getvalue()
         self.assertIn("# 馬券種別・固定100円評価", markdown)
         self.assertEqual(
