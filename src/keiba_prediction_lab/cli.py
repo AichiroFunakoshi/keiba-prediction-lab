@@ -9,6 +9,9 @@ from .bet_type_report import (
     evaluate_bet_type_race_directories,
     save_bet_type_evaluation_artifact,
 )
+from .bet_type_report_comparison import (
+    compare_bet_type_evaluation_report_files,
+)
 from .data_audit import audit_standard_csv, load_source_registry
 
 
@@ -42,6 +45,13 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="save an integrity-protected structured evaluation JSON",
     )
+
+    compare = subparsers.add_parser(
+        "compare-bet-type-reports",
+        help="compare two reports over identical races and payout files",
+    )
+    compare.add_argument("baseline", type=Path)
+    compare.add_argument("candidate", type=Path)
     return parser
 
 
@@ -69,6 +79,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.report is not None:
             save_bet_type_evaluation_artifact(artifact, args.report)
         print(artifact.to_markdown(), end="")
+        return 0
+
+    if args.command == "compare-bet-type-reports":
+        comparison = compare_bet_type_evaluation_report_files(
+            args.baseline, args.candidate
+        )
+        print(comparison.to_markdown(), end="")
         return 0
 
     report = audit_standard_csv(args.path)
