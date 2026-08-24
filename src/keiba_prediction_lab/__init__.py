@@ -154,7 +154,20 @@ from .local_adapter import (
     save_local_feature_bundle,
     save_local_training_bundle,
 )
-from .model import ConditionalLogitModel, TrainingRow, fit_conditional_logit
+from .model import (
+    CONDITIONAL_LOGIT_FEATURE_NAMES,
+    ConditionalLogitModel,
+    TrainingRow,
+    fit_conditional_logit,
+)
+from .model_artifact import (
+    MODEL_ARTIFACT_SCHEMA_VERSION,
+    ModelTrainingParameters,
+    TrainedModelArtifact,
+    load_trained_model_artifact,
+    save_trained_model_artifact,
+    train_local_model_artifact,
+)
 from .pace import (
     PACE_GENERATOR_VERSION,
     ExpectedPace,
@@ -245,6 +258,7 @@ __all__ = [
     "CalibrationSummary",
     "ColumnAvailability",
     "ConditionalLogitModel",
+    "CONDITIONAL_LOGIT_FEATURE_NAMES",
     "DEFAULT_GENERATOR_VERSION",
     "DEFAULT_BOOTSTRAP_SAMPLES",
     "DEFAULT_BOOTSTRAP_SEED",
@@ -268,6 +282,8 @@ __all__ = [
     "HistoricalTrainingRunner",
     "PACE_GENERATOR_VERSION",
     "MINIMUM_RECOMMENDED_RACES",
+    "MODEL_ARTIFACT_SCHEMA_VERSION",
+    "ModelTrainingParameters",
     "PIPELINE_MANIFEST_SCHEMA_VERSION",
     "PIPELINE_POLICY_VERSION",
     "PairedPortfolioComparison",
@@ -289,6 +305,7 @@ __all__ = [
     "TemperatureCalibratedModel",
     "TicketResult",
     "TrainingRow",
+    "TrainedModelArtifact",
     "TrifectaCombination",
     "TrifectaForecast",
     "TrifectaGeneratorComparison",
@@ -352,6 +369,7 @@ __all__ = [
     "load_history_csv",
     "load_targets_csv",
     "load_training_csv",
+    "load_trained_model_artifact",
     "load_frozen_prediction",
     "load_frozen_bet_type_forecast",
     "load_bet_type_evaluation_artifact",
@@ -371,11 +389,13 @@ __all__ = [
     "save_frozen_shadow_forecast",
     "save_local_feature_bundle",
     "save_local_training_bundle",
+    "save_trained_model_artifact",
     "save_race_prediction_bundle",
     "save_race_context",
     "settle_frozen_bet_type_candidates",
     "top1_accuracy",
     "top3_unordered_accuracy",
+    "train_local_model_artifact",
     "temperature_scale_predictions",
     "validate_race_predictions",
 ]
