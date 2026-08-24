@@ -20,7 +20,7 @@ class TrainingRow:
             raise ValueError("finish_position must be positive")
 
 
-_FEATURE_NAMES = (
+CONDITIONAL_LOGIT_FEATURE_NAMES = (
     "post_position",
     "carried_weight_kg",
     "body_weight_kg",
@@ -146,7 +146,7 @@ class ConditionalLogitModel:
 
     @property
     def feature_names(self) -> tuple[str, ...]:
-        return _FEATURE_NAMES
+        return CONDITIONAL_LOGIT_FEATURE_NAMES
 
     def predict(self, rows: Sequence[FeatureRow]) -> tuple[PredictionRecord, ...]:
         if not rows:
@@ -234,7 +234,7 @@ def fit_conditional_logit(
             raise ValueError("training race rows must share observed_at")
 
     raw_vectors = [_raw_features(row.features) for row in rows]
-    feature_count = len(_FEATURE_NAMES)
+    feature_count = len(CONDITIONAL_LOGIT_FEATURE_NAMES)
     means = tuple(
         sum(vector[index] for vector in raw_vectors) / len(raw_vectors)
         for index in range(feature_count)

@@ -31,6 +31,11 @@ from .local_adapter import (
     save_local_feature_bundle,
     save_local_training_bundle,
 )
+from .model_artifact import (
+    ModelTrainingParameters,
+    save_trained_model_artifact,
+    train_local_model_artifact,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -59,6 +64,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     training.add_argument("training", type=Path)
     training.add_argument("--output", type=Path, required=True)
+
+    train_model = subparsers.add_parser(
+        "train-model",
+        help="fit and save an integrity-protected model from local training data",
+    )
+    train_model.add_argument("training", type=Path)
+    train_model.add_argument("--output", type=Path, required=True)
+    train_model.add_argument("--prior-strength", type=float, default=10.0)
+    train_model.add_argument("--epochs", type=int, default=500)
+    train_model.add_argument("--learning-rate", type=float, default=0.1)
+    train_model.add_argument("--l2-strength", type=float, default=0.01)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -172,6 +188,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             "training_row_count": len(bundle.rows),
             "input_data_version": bundle.input_data_version,
             "training_sha256": bundle.training_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "train-model":
+        parameters = ModelTrainingParameters(
+            prior_strength=args.prior_strength,
+            epochs=args.epochs,
+            learning_rate=args.learning_rate,
+            l2_strength=args.l2_strength,
+        )
+        artifact = train_local_model_artifact(
+            args.training, parameters=parameters
+        )
+        digest = save_trained_model_artifact(artifact, args.output)
+        print(json.dumps({
+            "output": str(args.output),
+            "model_sha256": digest,
+            "model_version": artifact.model.model_version,
+            "trained_through": artifact.model.trained_through.isoformat(),
+            "training_row_count": artifact.training_row_count,
+            "training_race_count": artifact.training_race_count,
+            "input_data_version": artifact.input_data_version,
+            "training_sha256": artifact.training_sha256,
         }, ensure_ascii=False, indent=2))
         return 0
 
