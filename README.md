@@ -25,6 +25,7 @@
 - 予想モデルと買い目生成を分離する
 
 詳しい判断基準は [プロジェクト原則](docs/PROJECT_PRINCIPLES.md)、開発段階は [ロードマップ](docs/ROADMAP.md) を参照してください。
+別のMacや新しい作業環境から再開する場合は、[プロジェクト申し送り](docs/HANDOFF.md)を最初に確認してください。
 
 ## 現在できること
 
@@ -187,6 +188,7 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 
 ## 設計資料
 
+- [プロジェクト申し送り](docs/HANDOFF.md)
 - [比較用モデル](docs/BASELINES.md)
 - [特徴量と基準時刻](docs/FEATURES.md)
 - [初期確率モデル](docs/MODEL.md)
