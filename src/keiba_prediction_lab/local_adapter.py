@@ -15,6 +15,7 @@ from .features import (
     TargetRunner,
     generate_features,
 )
+from .model import TrainingRow
 
 
 HISTORY_COLUMNS = frozenset({
@@ -29,6 +30,8 @@ TARGET_COLUMNS = frozenset({
     "post_position", "carried_weight_kg", "body_weight_kg",
 })
 
+TRAINING_COLUMNS = HISTORY_COLUMNS | {"observed_at"}
+
 
 @dataclass(frozen=True)
 class LocalFeatureBundle:
@@ -36,6 +39,25 @@ class LocalFeatureBundle:
     targets_sha256: str
     input_data_version: str
     features: tuple[FeatureRow, ...]
+
+
+@dataclass(frozen=True)
+class HistoricalTrainingRunner:
+    performance: RacePerformance
+    observed_at: datetime
+
+    def __post_init__(self) -> None:
+        if self.observed_at.tzinfo is None or self.observed_at.utcoffset() is None:
+            raise ValueError("observed_at must be timezone-aware")
+        if self.observed_at >= self.performance.scheduled_at:
+            raise ValueError("observed_at must be before scheduled_at")
+
+
+@dataclass(frozen=True)
+class LocalTrainingBundle:
+    training_sha256: str
+    input_data_version: str
+    rows: tuple[TrainingRow, ...]
 
 
 def _rows(
@@ -71,26 +93,30 @@ def _optional_int(row: dict[str, str], name: str) -> int | None:
     return int(value) if value else None
 
 
+def _performance_from_row(row: dict[str, str]) -> RacePerformance:
+    return RacePerformance(
+        race_id=_required(row, "race_id"),
+        scheduled_at=datetime.fromisoformat(_required(row, "scheduled_at")),
+        result_known_at=datetime.fromisoformat(_required(row, "result_known_at")),
+        horse_id=_required(row, "horse_id"),
+        jockey_id=_required(row, "jockey_id"),
+        trainer_id=_required(row, "trainer_id"),
+        venue=_required(row, "venue"),
+        surface=Surface(_required(row, "surface")),
+        track_condition=_required(row, "track_condition"),
+        distance_m=int(_required(row, "distance_m")),
+        post_position=int(_required(row, "post_position")),
+        carried_weight_kg=float(_required(row, "carried_weight_kg")),
+        body_weight_kg=_optional_int(row, "body_weight_kg"),
+        finish_position=int(_required(row, "finish_position")),
+    )
+
+
 def _load_history_bytes(
     content: bytes, source_name: str
 ) -> tuple[RacePerformance, ...]:
     return tuple(
-        RacePerformance(
-            race_id=_required(row, "race_id"),
-            scheduled_at=datetime.fromisoformat(_required(row, "scheduled_at")),
-            result_known_at=datetime.fromisoformat(_required(row, "result_known_at")),
-            horse_id=_required(row, "horse_id"),
-            jockey_id=_required(row, "jockey_id"),
-            trainer_id=_required(row, "trainer_id"),
-            venue=_required(row, "venue"),
-            surface=Surface(_required(row, "surface")),
-            track_condition=_required(row, "track_condition"),
-            distance_m=int(_required(row, "distance_m")),
-            post_position=int(_required(row, "post_position")),
-            carried_weight_kg=float(_required(row, "carried_weight_kg")),
-            body_weight_kg=_optional_int(row, "body_weight_kg"),
-            finish_position=int(_required(row, "finish_position")),
-        )
+        _performance_from_row(row)
         for row in _rows(content, source_name, HISTORY_COLUMNS)
     )
 
@@ -128,6 +154,137 @@ def load_targets_csv(path: str | Path) -> tuple[TargetRunner, ...]:
     """Load result-free target rows; any additional column is rejected."""
     source = Path(path)
     return _load_targets_bytes(source.read_bytes(), source.name)
+
+
+def _load_training_bytes(
+    content: bytes, source_name: str
+) -> tuple[HistoricalTrainingRunner, ...]:
+    rows = _rows(content, source_name, TRAINING_COLUMNS)
+    return tuple(
+        HistoricalTrainingRunner(
+            performance=_performance_from_row(row),
+            observed_at=datetime.fromisoformat(_required(row, "observed_at")),
+        )
+        for row in rows
+    )
+
+
+def load_training_csv(path: str | Path) -> tuple[HistoricalTrainingRunner, ...]:
+    """Load historical runners with their explicit pre-race observation times."""
+    source = Path(path)
+    return _load_training_bytes(source.read_bytes(), source.name)
+
+
+def _validated_training_races(
+    runners: tuple[HistoricalTrainingRunner, ...],
+) -> tuple[tuple[HistoricalTrainingRunner, ...], ...]:
+    if not runners:
+        raise ValueError("training must contain at least one race")
+    grouped: dict[str, list[HistoricalTrainingRunner]] = {}
+    seen: set[tuple[str, str]] = set()
+    for runner in runners:
+        item = runner.performance
+        key = (item.race_id, item.horse_id)
+        if key in seen:
+            raise ValueError("training contains duplicate race_id and horse_id")
+        seen.add(key)
+        grouped.setdefault(item.race_id, []).append(runner)
+
+    races: list[tuple[HistoricalTrainingRunner, ...]] = []
+    for race_id, entries in grouped.items():
+        scheduled = {entry.performance.scheduled_at for entry in entries}
+        observed = {entry.observed_at for entry in entries}
+        result_known = {entry.performance.result_known_at for entry in entries}
+        posts = {entry.performance.post_position for entry in entries}
+        race_contexts = {
+            (
+                entry.performance.venue,
+                entry.performance.surface,
+                entry.performance.track_condition,
+                entry.performance.distance_m,
+            )
+            for entry in entries
+        }
+        if len(entries) < 2:
+            raise ValueError(f"training race {race_id} must contain at least two runners")
+        if len(scheduled) != 1 or len(observed) != 1 or len(result_known) != 1:
+            raise ValueError(
+                f"training race {race_id} must share scheduled, observed, and result-known times"
+            )
+        if len(posts) != len(entries):
+            raise ValueError(f"training race {race_id} contains duplicate post_position")
+        if len(race_contexts) != 1:
+            raise ValueError(f"training race {race_id} must share race context")
+        if not any(entry.performance.finish_position == 1 for entry in entries):
+            raise ValueError(f"training race {race_id} has no winner")
+        races.append(tuple(sorted(entries, key=lambda entry: entry.performance.horse_id)))
+    return tuple(sorted(
+        races,
+        key=lambda race: (
+            race[0].observed_at,
+            race[0].performance.scheduled_at,
+            race[0].performance.race_id,
+        ),
+    ))
+
+
+def build_time_safe_training_bundle(
+    training_path: str | Path,
+    *,
+    prior_strength: float = 10.0,
+) -> LocalTrainingBundle:
+    """Generate training rows using only whole races known at each observation."""
+    source = Path(training_path)
+    content = source.read_bytes()
+    training_hash = hashlib.sha256(content).hexdigest()
+    races = _validated_training_races(_load_training_bytes(content, source.name))
+    rows: list[TrainingRow] = []
+    for race in races:
+        observed_at = race[0].observed_at
+        race_id = race[0].performance.race_id
+        available_history = tuple(
+            entry.performance
+            for historical_race in races
+            if historical_race[0].performance.race_id != race_id
+            and historical_race[0].performance.result_known_at <= observed_at
+            for entry in historical_race
+        )
+        targets = tuple(
+            TargetRunner(
+                race_id=entry.performance.race_id,
+                scheduled_at=entry.performance.scheduled_at,
+                observed_at=entry.observed_at,
+                horse_id=entry.performance.horse_id,
+                jockey_id=entry.performance.jockey_id,
+                trainer_id=entry.performance.trainer_id,
+                venue=entry.performance.venue,
+                surface=entry.performance.surface,
+                track_condition=entry.performance.track_condition,
+                distance_m=entry.performance.distance_m,
+                post_position=entry.performance.post_position,
+                carried_weight_kg=entry.performance.carried_weight_kg,
+                body_weight_kg=entry.performance.body_weight_kg,
+            )
+            for entry in race
+        )
+        features_by_horse = {
+            feature.horse_id: feature
+            for feature in generate_features(
+                available_history, targets, prior_strength=prior_strength
+            )
+        }
+        rows.extend(
+            TrainingRow(
+                features=features_by_horse[entry.performance.horse_id],
+                finish_position=entry.performance.finish_position,
+            )
+            for entry in race
+        )
+    return LocalTrainingBundle(
+        training_sha256=training_hash,
+        input_data_version=f"sha256:{training_hash}",
+        rows=tuple(rows),
+    )
 
 
 def build_local_feature_bundle(
@@ -174,6 +331,32 @@ def save_local_feature_bundle(
                 "observed_at": row.observed_at.isoformat(),
             }
             for row in bundle.features
+        ],
+    }
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("x", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, sort_keys=True, indent=2)
+        handle.write("\n")
+
+
+def save_local_training_bundle(
+    bundle: LocalTrainingBundle, path: str | Path
+) -> None:
+    """Write a new JSON training artifact without overwriting existing output."""
+    payload = {
+        "schema_version": "1.0",
+        "training_sha256": bundle.training_sha256,
+        "input_data_version": bundle.input_data_version,
+        "rows": [
+            {
+                "finish_position": row.finish_position,
+                "features": {
+                    **asdict(row.features),
+                    "observed_at": row.features.observed_at.isoformat(),
+                },
+            }
+            for row in bundle.rows
         ],
     }
     target = Path(path)
