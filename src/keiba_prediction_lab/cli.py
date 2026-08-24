@@ -27,6 +27,7 @@ from .bet_type_segment_diagnostics import (
 )
 from .data_audit import audit_standard_csv, load_source_registry
 from .frozen import PredictionPhase
+from .input_templates import create_local_input_templates
 from .local_adapter import (
     build_local_feature_bundle,
     build_time_safe_training_bundle,
@@ -98,6 +99,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     predict_race.add_argument("--place-payout-slots", type=int)
     predict_race.add_argument("--output", type=Path, required=True)
+
+    templates = subparsers.add_parser(
+        "init-input-templates",
+        help="create protected starter files for local race inputs",
+    )
+    templates.add_argument("--output", type=Path, required=True)
+
+    audit_race = subparsers.add_parser(
+        "audit-race-inputs",
+        help="validate all formal race inputs without saving a prediction",
+    )
+    audit_race.add_argument("model", type=Path)
+    audit_race.add_argument("history", type=Path)
+    audit_race.add_argument("targets", type=Path)
+    audit_race.add_argument("pace_profiles", type=Path)
+    audit_race.add_argument("pace_scenario", type=Path)
+    audit_race.add_argument("--frozen-at", required=True)
+    audit_race.add_argument(
+        "--phase", choices=tuple(item.value for item in PredictionPhase),
+        default=PredictionPhase.PRE_ODDS.value,
+    )
+    audit_race.add_argument("--place-payout-slots", type=int)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -259,6 +282,51 @@ def main(argv: Sequence[str] | None = None) -> int:
             "actual_ticket": list(actual.trifecta_tickets[0].selection),
             "stake_yen": actual.trifecta_tickets[0].stake_yen,
             "shadow_stake_yen": 0,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "init-input-templates":
+        paths = create_local_input_templates(args.output)
+        print(json.dumps({
+            "output": str(args.output),
+            "files": [path.name for path in paths],
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "audit-race-inputs":
+        try:
+            run = build_local_race_prediction(
+                args.model,
+                args.history,
+                args.targets,
+                args.pace_profiles,
+                args.pace_scenario,
+                frozen_at=datetime.fromisoformat(args.frozen_at),
+                phase=PredictionPhase(args.phase),
+                place_payout_slots=args.place_payout_slots,
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        actual = run.prediction.actual_prediction
+        print(json.dumps({
+            "is_valid": True,
+            "prediction_saved": False,
+            "race_id": actual.race_id,
+            "runner_count": len(actual.predictions),
+            "scheduled_at": actual.scheduled_at.isoformat(),
+            "frozen_at": actual.frozen_at.isoformat(),
+            "phase": actual.phase.value,
+            "model_version": actual.model_version,
+            "input_data_version": run.input_data_version,
+            "model_sha256": run.model_sha256,
+            "history_sha256": run.history_sha256,
+            "targets_sha256": run.targets_sha256,
+            "pace_profiles_sha256": run.pace_profiles_sha256,
+            "pace_scenario_sha256": run.pace_scenario_sha256,
         }, ensure_ascii=False, indent=2))
         return 0
 

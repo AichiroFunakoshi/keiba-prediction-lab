@@ -23,6 +23,8 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-training \
 
 出力には入力2ファイルのSHA-256、両ハッシュから決定的に生成した`input_data_version`、対象レースID、発走・観測時刻、モデルへ渡す特徴量を記録する。既存の出力ファイルは上書きしない。
 
+空の雛形一式は`init-input-templates --output local/race-inputs`で生成できる。雛形は意図的に未完成であり、`_REPLACE_`表示を残したまま正式予測には使用できない。生成先には、外部データの誤コミットを避ける`.gitignore`と入力ガイドも含める。既存ディレクトリは変更しない。
+
 ## 必須列
 
 日時はタイムゾーン付きISO 8601、`surface`は`turf`、`dirt`、`jump`のいずれかとする。空欄を許すのは`body_weight_kg`だけである。

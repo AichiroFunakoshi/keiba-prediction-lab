@@ -9,6 +9,10 @@ from pathlib import Path
 
 from keiba_prediction_lab.cli import main
 from keiba_prediction_lab.frozen import load_frozen_prediction
+from keiba_prediction_lab.input_templates import (
+    INPUT_TEMPLATE_FILES,
+    create_local_input_templates,
+)
 from keiba_prediction_lab.local_adapter import (
     HISTORY_COLUMNS,
     TARGET_COLUMNS,
@@ -109,6 +113,90 @@ def _files(root: Path) -> tuple[Path, Path, Path, Path, Path]:
 
 
 class LocalPipelineTest(unittest.TestCase):
+    def test_cli_creates_incomplete_protected_input_templates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "inputs"
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "init-input-templates", "--output", str(output),
+                ])
+            summary = json.loads(stdout.getvalue())
+            scenario = json.loads(
+                (output / "pace-scenario.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(tuple(summary["files"]), INPUT_TEMPLATE_FILES)
+        self.assertTrue(scenario["race_id"].startswith("_REPLACE_"))
+
+    def test_template_creation_preserves_existing_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "existing"
+            output.mkdir()
+            marker = output / "user-file.txt"
+            marker.write_text("keep", encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                create_local_input_templates(output)
+
+            self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
+
+    def test_cli_audits_valid_inputs_without_writing_prediction(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = _files(root)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "audit-race-inputs", *(str(path) for path in paths),
+                    "--frozen-at", "2026-02-01T10:05:00+09:00",
+                ])
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["is_valid"])
+        self.assertFalse(report["prediction_saved"])
+        self.assertEqual(report["runner_count"], 5)
+        self.assertNotIn("actual_ticket", report)
+
+    def test_cli_audit_returns_structured_invalid_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = list(_files(root))
+            paths[4].write_text("{}", encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "audit-race-inputs", *(str(path) for path in paths),
+                    "--frozen-at", "2026-02-01T10:05:00+09:00",
+                ])
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(report["is_valid"])
+        self.assertIn("missing", report["error"])
+
+    def test_cli_audit_rejects_header_only_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = list(_files(root))
+            _write_csv(paths[1], HISTORY_COLUMNS, [])
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "audit-race-inputs", *(str(path) for path in paths),
+                    "--frozen-at", "2026-02-01T10:05:00+09:00",
+                ])
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("at least one history row", report["error"])
+
     def test_cli_saves_actual_one_ticket_and_zero_stake_shadows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

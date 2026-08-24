@@ -192,6 +192,8 @@ def build_local_race_prediction(
         targets_path,
         prior_strength=artifact.parameters.prior_strength,
     )
+    if features.history_row_count < 1:
+        raise ValueError("formal prediction requires at least one history row")
     profiles = _load_pace_profiles_bytes(profile_content, profile_source.name)
     scenario = _load_pace_scenario_bytes(scenario_content)
     if not features.observed_at <= frozen_at < features.scheduled_at:

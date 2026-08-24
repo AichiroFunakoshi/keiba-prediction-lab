@@ -178,6 +178,10 @@ from .local_pipeline import (
     load_local_pace_scenario,
     save_local_pipeline_run,
 )
+from .input_templates import (
+    INPUT_TEMPLATE_FILES,
+    create_local_input_templates,
+)
 from .pace import (
     PACE_GENERATOR_VERSION,
     ExpectedPace,
@@ -289,6 +293,7 @@ __all__ = [
     "HitTransition",
     "FeatureRow",
     "HISTORY_COLUMNS",
+    "INPUT_TEMPLATE_FILES",
     "HistoricalTrainingRunner",
     "LocalPipelineRun",
     "PACE_GENERATOR_VERSION",
@@ -354,6 +359,7 @@ __all__ = [
     "calibration_summary",
     "confidence_bucket",
     "compare_frozen_trifecta_generators",
+    "create_local_input_templates",
     "compare_bet_type_evaluation_artifacts",
     "compare_bet_type_evaluation_report_files",
     "diagnose_bet_type_evaluation_artifacts",
