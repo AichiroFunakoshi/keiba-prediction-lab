@@ -3,6 +3,7 @@
 import argparse
 import json
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 
 from .bet_type_bootstrap import (
@@ -25,11 +26,16 @@ from .bet_type_segment_diagnostics import (
     diagnose_bet_type_segment_report_files,
 )
 from .data_audit import audit_standard_csv, load_source_registry
+from .frozen import PredictionPhase
 from .local_adapter import (
     build_local_feature_bundle,
     build_time_safe_training_bundle,
     save_local_feature_bundle,
     save_local_training_bundle,
+)
+from .local_pipeline import (
+    build_local_race_prediction,
+    save_local_pipeline_run,
 )
 from .model_artifact import (
     ModelTrainingParameters,
@@ -75,6 +81,23 @@ def _build_parser() -> argparse.ArgumentParser:
     train_model.add_argument("--epochs", type=int, default=500)
     train_model.add_argument("--learning-rate", type=float, default=0.1)
     train_model.add_argument("--l2-strength", type=float, default=0.01)
+
+    predict_race = subparsers.add_parser(
+        "predict-race",
+        help="run the formal one-race pipeline from explicit local inputs",
+    )
+    predict_race.add_argument("model", type=Path)
+    predict_race.add_argument("history", type=Path)
+    predict_race.add_argument("targets", type=Path)
+    predict_race.add_argument("pace_profiles", type=Path)
+    predict_race.add_argument("pace_scenario", type=Path)
+    predict_race.add_argument("--frozen-at", required=True)
+    predict_race.add_argument(
+        "--phase", choices=tuple(item.value for item in PredictionPhase),
+        default=PredictionPhase.PRE_ODDS.value,
+    )
+    predict_race.add_argument("--place-payout-slots", type=int)
+    predict_race.add_argument("--output", type=Path, required=True)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -211,6 +234,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             "training_race_count": artifact.training_race_count,
             "input_data_version": artifact.input_data_version,
             "training_sha256": artifact.training_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "predict-race":
+        run = build_local_race_prediction(
+            args.model,
+            args.history,
+            args.targets,
+            args.pace_profiles,
+            args.pace_scenario,
+            frozen_at=datetime.fromisoformat(args.frozen_at),
+            phase=PredictionPhase(args.phase),
+            place_payout_slots=args.place_payout_slots,
+        )
+        manifest = save_local_pipeline_run(run, args.output)
+        actual = run.prediction.actual_prediction
+        print(json.dumps({
+            "output": str(args.output),
+            "manifest": str(manifest),
+            "race_id": actual.race_id,
+            "input_data_version": run.input_data_version,
+            "model_version": actual.model_version,
+            "actual_ticket": list(actual.trifecta_tickets[0].selection),
+            "stake_yen": actual.trifecta_tickets[0].stake_yen,
+            "shadow_stake_yen": 0,
         }, ensure_ascii=False, indent=2))
         return 0
 

@@ -189,9 +189,9 @@ def _float_tuple(payload: dict[str, Any], key: str) -> tuple[float, ...]:
     return tuple(float(value) for value in values)
 
 
-def load_trained_model_artifact(path: str | Path) -> TrainedModelArtifact:
-    """Load a model after verifying its schema, digest, and feature contract."""
-    envelope = json.loads(Path(path).read_text(encoding="utf-8"))
+def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
+    """Load model bytes after verifying schema, digest, and feature contract."""
+    envelope = json.loads(content.decode("utf-8"))
     if not isinstance(envelope, dict):
         raise ValueError("model artifact envelope must be an object")
     if envelope.get("schema_version") != MODEL_ARTIFACT_SCHEMA_VERSION:
@@ -229,3 +229,8 @@ def load_trained_model_artifact(path: str | Path) -> TrainedModelArtifact:
         ),
         model=model,
     )
+
+
+def load_trained_model_artifact(path: str | Path) -> TrainedModelArtifact:
+    """Load a model file after verifying schema, digest, and feature contract."""
+    return load_trained_model_artifact_bytes(Path(path).read_bytes())

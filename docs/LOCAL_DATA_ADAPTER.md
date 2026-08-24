@@ -21,7 +21,7 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-training \
   local/training.csv --output local/training.json
 ```
 
-出力には入力2ファイルのSHA-256、両ハッシュから決定的に生成した`input_data_version`、モデルへ渡す特徴量を記録する。既存の出力ファイルは上書きしない。
+出力には入力2ファイルのSHA-256、両ハッシュから決定的に生成した`input_data_version`、対象レースID、発走・観測時刻、モデルへ渡す特徴量を記録する。既存の出力ファイルは上書きしない。
 
 ## 必須列
 
