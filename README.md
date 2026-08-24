@@ -1,80 +1,184 @@
 # Keiba Prediction Lab
 
-中央競馬の着順確率を、再現可能な手順で予測・検証するためのオープンソース研究プロジェクトです。
+中央競馬の「1着」と「三連単」を、発走前情報だけで再現可能に予測・検証するオープンソース研究プロジェクトです。
 
-目的は利益最大化ではありません。各馬の勝率・3着内率・着順を推定し、その精度を継続的に改善します。馬券収支は予測の性質を確認する補助指標として扱い、購入額はすべての買い目で1点100円に固定します。
+目的は利益最大化ではありません。まず1着確率を高め、その確率から三連単の着順同時確率を作り、予測が実際にどこまで当たるかを長期的に検証します。マーチンゲール、オッズに応じた購入額変更、多点購入による見かけ上の的中率向上は研究対象にしません。
 
-## 原則
+## 研究上の固定ルール
 
-- オッズを見る前の予想を時刻付きで固定する
-- 予測時点で利用できない情報を特徴量に入れない
+| 区分 | 扱い |
+|---|---|
+| 実購入候補 | 三連単1点、100円固定 |
+| 三連単1・3・5・10点 | 購入額0円の影予測。点数追加の有効性を事後検証する |
+| 単勝・複勝・馬連・馬単・3連複・3連単 | 各券種の最上位候補を購入額0円で記録する |
+| オッズ | 予測と分離する。予算の多寡で予測を変更しない |
+| モデル更新 | 個々のレース結果ですぐ更新せず、固定した検証単位で判断する |
+| データ | 権利と取得条件を確認したローカル入力だけを使う |
+
+そのほか、次を必須とします。
+
+- オッズを見る前の予想を、発走前の時刻とともに固定する
+- 予測時点で利用できない結果や未来情報を特徴量に入れない
 - 学習・検証・最終評価を時間順に分離する
-- 的中率、確率校正、回収率を別々に評価する
-- 回収率とともに高配当への依存度を表示する
+- 1着的中率、確率校正、三連単的中率、回収率を混ぜずに評価する
+- 回収率を示す場合は、高配当への依存度も併記する
 - 予想モデルと買い目生成を分離する
-- 有料データや利用条件の不明なデータを前提にしない
 
-詳しい判断基準は [docs/PROJECT_PRINCIPLES.md](docs/PROJECT_PRINCIPLES.md) を参照してください。
-開発段階と完了条件は [docs/ROADMAP.md](docs/ROADMAP.md) を参照してください。
+詳しい判断基準は [プロジェクト原則](docs/PROJECT_PRINCIPLES.md)、開発段階は [ロードマップ](docs/ROADMAP.md) を参照してください。
 
-## 現在の段階
+## 現在できること
 
-ロードマップの段階1、3、4、8を完了し、段階2の実データ源監査、段階5の初期モデル、段階6の馬券種別評価、段階7のウォークフォワード検証を進めています。実購入候補は三連単1点100円に限定し、三連単の1・3・5・10点と全6馬券種の確率表・最上位候補は購入しない影の評価として発走前に別保存します。実データ源は未承認のため、テストには合成データだけを使用します。
+- 権利確認済みのローカルCSVを監査する
+- 過去成績から、予測時点より前の情報だけで特徴量・学習行を作る
+- 条件付きロジット初期モデルを学習し、入力ハッシュ付きで保存する
+- 1レース分の入力一式を事前監査する
+- 1着順位、三連単1点、二つの三連単影予測、全6馬券種影予測を一括固定する
+- 保存済み予測の改ざん・ファイル差し替え・方針違反を監査する
+- 監査済み予測を日本語Markdownレポートにする
+- 結果と払戻を別ファイルで追加し、券種別・期間別・条件別に事後評価する
 
-## 開発環境
+実データ源はまだプロジェクトとして承認していません。自動スクレイピングも実装しておらず、テストには合成データだけを使用しています。そのため、現段階では実競馬に対する的中率を主張しません。
+
+## 動作環境
 
 - Python 3.11以上
-- unittest（Python標準ライブラリ）
+- 外部Pythonパッケージ不要
+- テスト: `unittest`（標準ライブラリ）
 
 ```bash
-python -m venv .venv
+git clone https://github.com/AichiroFunakoshi/keiba-prediction-lab.git
+cd keiba-prediction-lab
+python3 -m venv .venv
 source .venv/bin/activate
 python -m unittest discover -s tests
 ```
 
-データ候補の判定と、ローカルCSVの品質を確認できます。
+以下の例では、ソースツリーから直接CLIを実行します。
 
 ```bash
-PYTHONPATH=src python -m keiba_prediction_lab.cli list-sources
-PYTHONPATH=src python -m keiba_prediction_lab.cli audit-csv tests/fixtures/synthetic_race_results.csv
-PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-features local/history.csv local/targets.csv --output local/features.json
-PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-training local/training.csv --output local/training.json
-PYTHONPATH=src python -m keiba_prediction_lab.cli train-model local/training.csv --output local/model.json
-PYTHONPATH=src python -m keiba_prediction_lab.cli predict-race local/model.json local/history.csv local/targets.csv local/pace-profiles.csv local/pace-scenario.json --frozen-at 2026-02-01T10:05:00+09:00 --output outputs/race-1
-PYTHONPATH=src python -m keiba_prediction_lab.cli init-input-templates --output local/race-inputs
-PYTHONPATH=src python -m keiba_prediction_lab.cli audit-race-inputs local/model.json local/history.csv local/targets.csv local/pace-profiles.csv local/pace-scenario.json --frozen-at 2026-02-01T10:05:00+09:00
-PYTHONPATH=src python -m keiba_prediction_lab.cli audit-prediction-bundle outputs/race-1
-PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types outputs/race-1 outputs/race-2 --report reports/bet-types-evaluation.json
-PYTHONPATH=src python -m keiba_prediction_lab.cli compare-bet-type-reports reports/baseline.json reports/candidate.json
-PYTHONPATH=src python -m keiba_prediction_lab.cli bootstrap-bet-type-reports reports/baseline.json reports/candidate.json --samples 10000 --seed 0
-PYTHONPATH=src python -m keiba_prediction_lab.cli bootstrap-bet-type-reports reports/baseline.json reports/candidate.json --samples 10000 --seed 0 --resampling-unit race-date
-PYTHONPATH=src python -m keiba_prediction_lab.cli diagnose-bet-type-reports reports/baseline.json reports/candidate.json --top-races 5
-PYTHONPATH=src python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.json reports/candidate.json
+export PYTHONPATH=src
 ```
 
-CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、日付・着順の異常をJSONで出力します。`evaluate-bet-types` は各ディレクトリの事前固定予測、払戻表、`race-context.json`を検証し、全6馬券種を混ぜずにMarkdownで一括評価します。`--report` を指定すると、3入力のSHA-256、開催日、レース条件、構造化集計、レース別決済台帳を上書き不可のJSONにも保存します。`compare-bet-type-reports` は同一レース・同一払戻・同一条件を確認してから基準モデルとの差を表示し、`bootstrap-bet-type-reports` はレース単位または開催日単位の対応95%区間を固定シードで推定します。`diagnose-bet-type-reports` は的中と払戻差を開催日・レース・券種別に、`diagnose-bet-type-segments`は競馬場・コース種別・馬場・距離帯・クラス・頭数別に分解します。
+## 最短ワークフロー
 
-## 公開データに関する方針
+### 1. 入力ひな型を作る
 
-リポジトリには、コード、仕様、テスト、出所と再配布条件を確認できるサンプルだけを含めます。取得元の利用条件が不明なレースデータ、スクレイピング結果、認証情報、学習済みモデルはコミットしません。
+```bash
+python -m keiba_prediction_lab.cli init-input-templates --output local/race-inputs
+```
 
-実際のレースデータは、利用者が提供元の最新の利用規約・ライセンス・指定された取得方法を確認し、正当に利用できるものだけを自分のローカル環境へ配置してください。本プロジェクトのMIT Licenseは、外部データの取得・加工・再配布権を付与しません。また、「自己責任」という表示だけで禁止された取得や利用が許されるものではありません。
+生成されたCSVとJSONに、利用権を確認したデータを入力します。ひな型は不完全な例であり、そのまま予測には使えません。
 
-詳しくは [docs/DATA_USAGE_POLICY.md](docs/DATA_USAGE_POLICY.md) を参照してください。
+### 2. 学習データを監査し、モデルを固定する
 
-比較用モデルの定義は [docs/BASELINES.md](docs/BASELINES.md) を参照してください。
-特徴量と基準時刻の定義は [docs/FEATURES.md](docs/FEATURES.md) を参照してください。
-初期確率モデルの定義は [docs/MODEL.md](docs/MODEL.md) を参照してください。
-時系列検証の定義は [docs/WALK_FORWARD.md](docs/WALK_FORWARD.md) を参照してください。
-予想固定とレポートの定義は [docs/FROZEN_PREDICTIONS.md](docs/FROZEN_PREDICTIONS.md) を参照してください。
-三連単の条件付き確率と影の評価は [docs/TRIFECTA_PORTFOLIOS.md](docs/TRIFECTA_PORTFOLIOS.md) を参照してください。
-脚質と想定ペースを使う第2基準線は [docs/PACE_MODEL.md](docs/PACE_MODEL.md) を参照してください。
-三連単生成モデルの公平な対応比較は [docs/MODEL_COMPARISON.md](docs/MODEL_COMPARISON.md) を参照してください。
-1レース分の実購入候補と影予測を一括固定する流れは [docs/PIPELINE.md](docs/PIPELINE.md) を参照してください。
-全6馬券種の固定100円評価は [docs/BET_TYPE_EVALUATION.md](docs/BET_TYPE_EVALUATION.md) を参照してください。
-全6馬券種の確率表と事前固定候補は [docs/BET_TYPE_SHADOW_FORECASTS.md](docs/BET_TYPE_SHADOW_FORECASTS.md) を参照してください。
-権利確認済みのローカルデータを特徴量・時点安全な学習行へ変換する契約は [docs/LOCAL_DATA_ADAPTER.md](docs/LOCAL_DATA_ADAPTER.md) を参照してください。
+```bash
+python -m keiba_prediction_lab.cli audit-csv local/training.csv
+python -m keiba_prediction_lab.cli prepare-training local/training.csv --output local/training.json
+python -m keiba_prediction_lab.cli train-model local/training.csv --output local/model.json
+```
+
+`model.json`にはモデル係数だけでなく、学習期間、入力ハッシュ、学習条件、モデル内容のSHA-256が保存されます。既存ファイルは上書きしません。
+
+### 3. 予測前に入力一式を監査する
+
+```bash
+python -m keiba_prediction_lab.cli audit-race-inputs \
+  local/model.json \
+  local/history.csv \
+  local/targets.csv \
+  local/pace-profiles.csv \
+  local/pace-scenario.json \
+  --frozen-at 2026-02-01T10:05:00+09:00
+```
+
+ここでは予測ファイルを保存しません。レースID、観測時刻、発走時刻、モデル学習期限、馬IDの一致などを先に確認します。
+
+### 4. 正式予測を発走前に固定する
+
+```bash
+python -m keiba_prediction_lab.cli predict-race \
+  local/model.json \
+  local/history.csv \
+  local/targets.csv \
+  local/pace-profiles.csv \
+  local/pace-scenario.json \
+  --frozen-at 2026-02-01T10:05:00+09:00 \
+  --output outputs/race-1
+```
+
+`outputs/race-1`には次のファイルが作られます。
+
+| ファイル | 内容 |
+|---|---|
+| `actual.json` | 1着確率順位と実購入候補の三連単1点100円 |
+| `baseline-shadow.json` | 基準モデルによる三連単1・3・5・10点の影予測 |
+| `pace-shadow.json` | 脚質・想定ペースを加えた三連単影予測 |
+| `bet-types-shadow.json` | 全6馬券種の確率表と最上位候補。全て購入額0円 |
+| `input-provenance.json` | モデルと全入力ファイルのSHA-256 |
+| `manifest.json` | 各成果物のハッシュ、生成器、購入方針 |
+
+出力ディレクトリが既に存在する場合は失敗し、事前予測を上書きしません。
+
+### 5. 保存内容を監査し、人間向けレポートを作る
+
+```bash
+python -m keiba_prediction_lab.cli audit-prediction-bundle outputs/race-1
+python -m keiba_prediction_lab.cli report-prediction-bundle outputs/race-1 --output outputs/race-1-report.md
+```
+
+レポート生成時にも監査を行います。監査した同一のバイト列からレポートを作るため、監査後の読み直しによる差し替えを避けています。`--output`を省略するとMarkdownを標準出力へ表示します。レポートも既存ファイルを上書きしません。
+
+### 6. レース後に評価する
+
+結果・払戻・レース条件は、発走前予測を変更せず別ファイルとして追加します。
+
+```bash
+python -m keiba_prediction_lab.cli evaluate-bet-types \
+  outputs/race-1 outputs/race-2 \
+  --report reports/bet-types-evaluation.json
+```
+
+評価は馬券種ごとに分離し、固定100円で集計します。最大払戻を除いた回収率や上位的中への依存度も表示するため、少数の高配当だけで性能が高く見える状態を確認できます。
+
+## 比較・診断コマンド
+
+```bash
+python -m keiba_prediction_lab.cli compare-bet-type-reports reports/baseline.json reports/candidate.json
+python -m keiba_prediction_lab.cli bootstrap-bet-type-reports reports/baseline.json reports/candidate.json --samples 10000 --seed 0
+python -m keiba_prediction_lab.cli bootstrap-bet-type-reports reports/baseline.json reports/candidate.json --samples 10000 --seed 0 --resampling-unit race-date
+python -m keiba_prediction_lab.cli diagnose-bet-type-reports reports/baseline.json reports/candidate.json --top-races 5
+python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.json reports/candidate.json
+```
+
+- `compare-bet-type-reports`: 同一レース・同一払戻・同一条件に限定してモデル差を比較
+- `bootstrap-bet-type-reports`: レース単位または開催日単位の対応95%区間を固定シードで推定
+- `diagnose-bet-type-reports`: 的中・払戻差を開催日、レース、券種別に分解
+- `diagnose-bet-type-segments`: 競馬場、芝・ダート、馬場、距離帯、クラス、頭数別に分解
+
+これらは次のモデル更新を決める材料であり、個々のレース結果から係数を自動更新する機能ではありません。
+
+## データ利用と公開範囲
+
+リポジトリには、コード、仕様、合成テスト、出所と再配布条件を確認できるサンプルだけを含めます。取得元の利用条件が不明なレースデータ、スクレイピング結果、認証情報、実データで学習したモデルはコミットしません。
+
+実際のレースデータは、利用者が提供元の最新規約・ライセンス・指定された取得方法を確認し、正当に利用できるものだけをローカルへ配置してください。本リポジトリのMIT Licenseは、外部データの取得・加工・再配布権を付与しません。「自己責任」と記載しても、禁止された取得や利用が許されるわけではありません。
+
+詳しくは [データ利用方針](docs/DATA_USAGE_POLICY.md) と [ローカルデータ契約](docs/LOCAL_DATA_ADAPTER.md) を参照してください。
+
+## 設計資料
+
+- [比較用モデル](docs/BASELINES.md)
+- [特徴量と基準時刻](docs/FEATURES.md)
+- [初期確率モデル](docs/MODEL.md)
+- [時系列検証](docs/WALK_FORWARD.md)
+- [予想固定と評価](docs/FROZEN_PREDICTIONS.md)
+- [三連単の条件付き確率と影予測](docs/TRIFECTA_PORTFOLIOS.md)
+- [脚質・想定ペースモデル](docs/PACE_MODEL.md)
+- [三連単生成モデルの対応比較](docs/MODEL_COMPARISON.md)
+- [1レース予測パイプライン](docs/PIPELINE.md)
+- [全6馬券種の事前予測](docs/BET_TYPE_SHADOW_FORECASTS.md)
+- [全6馬券種の事後評価](docs/BET_TYPE_EVALUATION.md)
 
 ## ライセンス
 
-プログラムコードはMIT Licenseです。外部データにはこのライセンスは適用されず、それぞれの提供元の条件に従います。
+プログラムコードは [MIT License](LICENSE) です。外部データには適用されず、それぞれの提供元の条件に従います。

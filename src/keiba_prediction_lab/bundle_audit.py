@@ -32,6 +32,14 @@ class PredictionBundleAudit:
     shadow_stake_yen: int
 
 
+@dataclass(frozen=True)
+class AuditedPredictionBundle:
+    """A verified bundle and the audit metadata from the same byte snapshot."""
+
+    audit: PredictionBundleAudit
+    bundle: RacePredictionBundle
+
+
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     payload: dict[str, object] = {}
     for key, value in pairs:
@@ -108,8 +116,10 @@ def _verify_provenance(
         raise ValueError("input provenance does not match prediction artifacts")
 
 
-def audit_prediction_bundle(directory: str | Path) -> PredictionBundleAudit:
-    """Verify required files, their digests, and all cross-file contracts."""
+def load_audited_prediction_bundle(
+    directory: str | Path,
+) -> AuditedPredictionBundle:
+    """Load and verify one immutable byte snapshot of a prediction bundle."""
     root = Path(directory)
     required = {
         "manifest.json", "actual.json", "baseline-shadow.json",
@@ -224,7 +234,7 @@ def audit_prediction_bundle(directory: str | Path) -> PredictionBundleAudit:
     _verify_provenance(
         contents["input-provenance.json"], actual.input_data_version
     )
-    return PredictionBundleAudit(
+    audit = PredictionBundleAudit(
         race_id=actual.race_id,
         scheduled_at=actual.scheduled_at,
         frozen_at=actual.frozen_at,
@@ -235,3 +245,9 @@ def audit_prediction_bundle(directory: str | Path) -> PredictionBundleAudit:
         actual_stake_yen=actual.trifecta_tickets[0].stake_yen,
         shadow_stake_yen=0,
     )
+    return AuditedPredictionBundle(audit=audit, bundle=bundle)
+
+
+def audit_prediction_bundle(directory: str | Path) -> PredictionBundleAudit:
+    """Verify required files, their digests, and all cross-file contracts."""
+    return load_audited_prediction_bundle(directory).audit

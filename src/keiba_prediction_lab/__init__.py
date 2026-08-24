@@ -20,7 +20,13 @@ from .bet_type_bootstrap import (
     bootstrap_bet_type_evaluation_artifacts,
     bootstrap_bet_type_evaluation_report_files,
 )
-from .bundle_audit import PredictionBundleAudit, audit_prediction_bundle
+from .bundle_audit import (
+    AuditedPredictionBundle,
+    PredictionBundleAudit,
+    audit_prediction_bundle,
+    load_audited_prediction_bundle,
+)
+from .prediction_report import build_prediction_bundle_markdown
 from .bet_type_forecast import (
     BET_TYPE_FORECAST_SCHEMA_VERSION,
     BET_TYPE_GENERATOR_VERSION,
@@ -241,6 +247,7 @@ from .walk_forward import (
 )
 
 __all__ = [
+    "AuditedPredictionBundle",
     "BaselineRunner",
     "BaselineScore",
     "BET_TYPE_LABELS_JA",
@@ -348,6 +355,7 @@ __all__ = [
     "assert_pre_race_features",
     "audit_standard_csv",
     "audit_prediction_bundle",
+    "build_prediction_bundle_markdown",
     "binary_brier_score",
     "build_local_feature_bundle",
     "build_local_race_prediction",
@@ -390,6 +398,7 @@ __all__ = [
     "horse_history_baseline",
     "load_source_registry",
     "load_history_csv",
+    "load_audited_prediction_bundle",
     "load_local_pace_profiles",
     "load_local_pace_scenario",
     "load_targets_csv",
