@@ -44,6 +44,7 @@ from .model_artifact import (
     save_trained_model_artifact,
     train_local_model_artifact,
 )
+from .prediction_report import build_prediction_bundle_markdown
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -128,6 +129,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="verify a saved prediction directory without modifying it",
     )
     audit_bundle.add_argument("directory", type=Path)
+
+    prediction_report = subparsers.add_parser(
+        "report-prediction-bundle",
+        help="render an audited saved prediction as Japanese Markdown",
+    )
+    prediction_report.add_argument("directory", type=Path)
+    prediction_report.add_argument("--output", type=Path)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -358,6 +366,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             "actual_stake_yen": report.actual_stake_yen,
             "shadow_stake_yen": report.shadow_stake_yen,
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "report-prediction-bundle":
+        try:
+            markdown = build_prediction_bundle_markdown(args.directory)
+            if args.output is None:
+                print(markdown, end="")
+            else:
+                with args.output.open("x", encoding="utf-8", errors="strict") as handle:
+                    handle.write(markdown)
+                print(json.dumps({
+                    "output": str(args.output),
+                    "prediction_directory": str(args.directory),
+                }, ensure_ascii=False, indent=2))
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
         return 0
 
     if args.command == "compare-bet-type-reports":
