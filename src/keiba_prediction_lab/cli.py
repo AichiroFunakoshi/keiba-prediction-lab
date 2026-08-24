@@ -25,6 +25,7 @@ from .bet_type_report_comparison import (
 from .bet_type_segment_diagnostics import (
     diagnose_bet_type_segment_report_files,
 )
+from .bundle_audit import audit_prediction_bundle
 from .data_audit import audit_standard_csv, load_source_registry
 from .frozen import PredictionPhase
 from .input_templates import create_local_input_templates
@@ -121,6 +122,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=PredictionPhase.PRE_ODDS.value,
     )
     audit_race.add_argument("--place-payout-slots", type=int)
+
+    audit_bundle = subparsers.add_parser(
+        "audit-prediction-bundle",
+        help="verify a saved prediction directory without modifying it",
+    )
+    audit_bundle.add_argument("directory", type=Path)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -327,6 +334,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             "targets_sha256": run.targets_sha256,
             "pace_profiles_sha256": run.pace_profiles_sha256,
             "pace_scenario_sha256": run.pace_scenario_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "audit-prediction-bundle":
+        try:
+            report = audit_prediction_bundle(args.directory)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "race_id": report.race_id,
+            "scheduled_at": report.scheduled_at.isoformat(),
+            "frozen_at": report.frozen_at.isoformat(),
+            "model_version": report.model_version,
+            "input_data_version": report.input_data_version,
+            "runner_count": report.runner_count,
+            "actual_ticket_count": report.actual_ticket_count,
+            "actual_stake_yen": report.actual_stake_yen,
+            "shadow_stake_yen": report.shadow_stake_yen,
         }, ensure_ascii=False, indent=2))
         return 0
 

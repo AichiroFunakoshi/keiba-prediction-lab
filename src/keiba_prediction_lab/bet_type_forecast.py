@@ -398,9 +398,11 @@ def _load_probability(payload: dict[str, object]) -> BetTypeProbability:
     )
 
 
-def load_frozen_bet_type_forecast(path: str | Path) -> FrozenBetTypeForecast:
-    """Load a snapshot after verifying its schema and canonical SHA-256 digest."""
-    envelope = json.loads(Path(path).read_text(encoding="utf-8"))
+def load_frozen_bet_type_forecast_bytes(
+    content: bytes,
+) -> FrozenBetTypeForecast:
+    """Load one immutable byte snapshot of a bet-type forecast."""
+    envelope = json.loads(content.decode("utf-8"))
     if envelope.get("schema_version") != BET_TYPE_FORECAST_SCHEMA_VERSION:
         raise ValueError("unsupported frozen bet type schema_version")
     payload = envelope.get("payload")
@@ -430,3 +432,9 @@ def load_frozen_bet_type_forecast(path: str | Path) -> FrozenBetTypeForecast:
         generator_version=payload["generator_version"],
         forecast=forecast,
     )
+
+
+def load_frozen_bet_type_forecast(
+    path: str | Path,
+) -> FrozenBetTypeForecast:
+    return load_frozen_bet_type_forecast_bytes(Path(path).read_bytes())
