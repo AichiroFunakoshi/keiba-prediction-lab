@@ -25,7 +25,12 @@ from .bet_type_segment_diagnostics import (
     diagnose_bet_type_segment_report_files,
 )
 from .data_audit import audit_standard_csv, load_source_registry
-from .local_adapter import build_local_feature_bundle, save_local_feature_bundle
+from .local_adapter import (
+    build_local_feature_bundle,
+    build_time_safe_training_bundle,
+    save_local_feature_bundle,
+    save_local_training_bundle,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -47,6 +52,13 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("history", type=Path)
     prepare.add_argument("targets", type=Path)
     prepare.add_argument("--output", type=Path, required=True)
+
+    training = subparsers.add_parser(
+        "prepare-training",
+        help="build time-safe training rows from a local historical CSV",
+    )
+    training.add_argument("training", type=Path)
+    training.add_argument("--output", type=Path, required=True)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -149,6 +161,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             "input_data_version": bundle.input_data_version,
             "history_sha256": bundle.history_sha256,
             "targets_sha256": bundle.targets_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "prepare-training":
+        bundle = build_time_safe_training_bundle(args.training)
+        save_local_training_bundle(bundle, args.output)
+        print(json.dumps({
+            "output": str(args.output),
+            "training_row_count": len(bundle.rows),
+            "input_data_version": bundle.input_data_version,
+            "training_sha256": bundle.training_sha256,
         }, ensure_ascii=False, indent=2))
         return 0
 

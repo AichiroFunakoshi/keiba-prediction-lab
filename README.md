@@ -38,6 +38,7 @@ python -m unittest discover -s tests
 PYTHONPATH=src python -m keiba_prediction_lab.cli list-sources
 PYTHONPATH=src python -m keiba_prediction_lab.cli audit-csv tests/fixtures/synthetic_race_results.csv
 PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-features local/history.csv local/targets.csv --output local/features.json
+PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-training local/training.csv --output local/training.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types outputs/race-1 outputs/race-2 --report reports/bet-types-evaluation.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli compare-bet-type-reports reports/baseline.json reports/candidate.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli bootstrap-bet-type-reports reports/baseline.json reports/candidate.json --samples 10000 --seed 0
@@ -67,7 +68,7 @@ CSV監査は内容を外部送信せず、SHA-256、行数、欠損、重複、�
 1レース分の実購入候補と影予測を一括固定する流れは [docs/PIPELINE.md](docs/PIPELINE.md) を参照してください。
 全6馬券種の固定100円評価は [docs/BET_TYPE_EVALUATION.md](docs/BET_TYPE_EVALUATION.md) を参照してください。
 全6馬券種の確率表と事前固定候補は [docs/BET_TYPE_SHADOW_FORECASTS.md](docs/BET_TYPE_SHADOW_FORECASTS.md) を参照してください。
-権利確認済みのローカルデータを特徴量へ変換する契約は [docs/LOCAL_DATA_ADAPTER.md](docs/LOCAL_DATA_ADAPTER.md) を参照してください。
+権利確認済みのローカルデータを特徴量・時点安全な学習行へ変換する契約は [docs/LOCAL_DATA_ADAPTER.md](docs/LOCAL_DATA_ADAPTER.md) を参照してください。
 
 ## ライセンス
 
