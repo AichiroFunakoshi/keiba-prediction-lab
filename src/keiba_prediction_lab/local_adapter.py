@@ -2,12 +2,12 @@
 
 import csv
 import hashlib
+import io
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from .data_audit import sha256_file
 from .features import (
     FeatureRow,
     RacePerformance,
@@ -38,17 +38,23 @@ class LocalFeatureBundle:
     features: tuple[FeatureRow, ...]
 
 
-def _rows(path: str | Path, expected: frozenset[str]) -> tuple[dict[str, str], ...]:
-    source = Path(path)
-    with source.open(encoding="utf-8", newline="") as handle:
+def _rows(
+    content: bytes, source_name: str, expected: frozenset[str]
+) -> tuple[dict[str, str], ...]:
+    with io.StringIO(content.decode("utf-8"), newline="") as handle:
         reader = csv.DictReader(handle)
-        actual = set(reader.fieldnames or ())
+        fieldnames = reader.fieldnames or []
+        duplicates = sorted({
+            name for name in fieldnames if fieldnames.count(name) > 1
+        })
+        actual = set(fieldnames)
         missing = expected - actual
         unexpected = actual - expected
-        if missing or unexpected:
+        if missing or unexpected or duplicates:
             raise ValueError(
-                f"invalid columns for {source.name}: "
-                f"missing={sorted(missing)}, unexpected={sorted(unexpected)}"
+                f"invalid columns for {source_name}: "
+                f"missing={sorted(missing)}, unexpected={sorted(unexpected)}, "
+                f"duplicates={duplicates}"
             )
         return tuple(dict(row) for row in reader)
 
@@ -65,8 +71,9 @@ def _optional_int(row: dict[str, str], name: str) -> int | None:
     return int(value) if value else None
 
 
-def load_history_csv(path: str | Path) -> tuple[RacePerformance, ...]:
-    """Load complete historical race rows with result-availability timestamps."""
+def _load_history_bytes(
+    content: bytes, source_name: str
+) -> tuple[RacePerformance, ...]:
     return tuple(
         RacePerformance(
             race_id=_required(row, "race_id"),
@@ -84,12 +91,19 @@ def load_history_csv(path: str | Path) -> tuple[RacePerformance, ...]:
             body_weight_kg=_optional_int(row, "body_weight_kg"),
             finish_position=int(_required(row, "finish_position")),
         )
-        for row in _rows(path, HISTORY_COLUMNS)
+        for row in _rows(content, source_name, HISTORY_COLUMNS)
     )
 
 
-def load_targets_csv(path: str | Path) -> tuple[TargetRunner, ...]:
-    """Load result-free target rows; any additional column is rejected."""
+def load_history_csv(path: str | Path) -> tuple[RacePerformance, ...]:
+    """Load complete historical race rows with result-availability timestamps."""
+    source = Path(path)
+    return _load_history_bytes(source.read_bytes(), source.name)
+
+
+def _load_targets_bytes(
+    content: bytes, source_name: str
+) -> tuple[TargetRunner, ...]:
     return tuple(
         TargetRunner(
             race_id=_required(row, "race_id"),
@@ -106,8 +120,14 @@ def load_targets_csv(path: str | Path) -> tuple[TargetRunner, ...]:
             carried_weight_kg=float(_required(row, "carried_weight_kg")),
             body_weight_kg=_optional_int(row, "body_weight_kg"),
         )
-        for row in _rows(path, TARGET_COLUMNS)
+        for row in _rows(content, source_name, TARGET_COLUMNS)
     )
+
+
+def load_targets_csv(path: str | Path) -> tuple[TargetRunner, ...]:
+    """Load result-free target rows; any additional column is rejected."""
+    source = Path(path)
+    return _load_targets_bytes(source.read_bytes(), source.name)
 
 
 def build_local_feature_bundle(
@@ -117,14 +137,18 @@ def build_local_feature_bundle(
     prior_strength: float = 10.0,
 ) -> LocalFeatureBundle:
     """Convert two local files into versioned, leakage-checked model features."""
-    history_hash = sha256_file(history_path)
-    targets_hash = sha256_file(targets_path)
+    history_source = Path(history_path)
+    targets_source = Path(targets_path)
+    history_content = history_source.read_bytes()
+    targets_content = targets_source.read_bytes()
+    history_hash = hashlib.sha256(history_content).hexdigest()
+    targets_hash = hashlib.sha256(targets_content).hexdigest()
     version_hash = hashlib.sha256(
         f"history:{history_hash}\ntargets:{targets_hash}".encode("utf-8")
     ).hexdigest()
     features = generate_features(
-        load_history_csv(history_path),
-        load_targets_csv(targets_path),
+        _load_history_bytes(history_content, history_source.name),
+        _load_targets_bytes(targets_content, targets_source.name),
         prior_strength=prior_strength,
     )
     return LocalFeatureBundle(

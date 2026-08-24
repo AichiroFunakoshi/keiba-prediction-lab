@@ -106,6 +106,18 @@ class LocalAdapterTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unexpected=.*finish_position"):
                 load_targets_csv(path)
 
+    def test_target_file_rejects_duplicate_header(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "targets.csv"
+            _write(path, TARGET_COLUMNS, _target_rows())
+            lines = path.read_text(encoding="utf-8").splitlines()
+            lines[0] += ",observed_at"
+            lines[1] += ",2026-02-01T10:00:00+09:00"
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "duplicates=.*observed_at"):
+                load_targets_csv(path)
+
     def test_rejects_history_result_not_known_at_observation_time(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
