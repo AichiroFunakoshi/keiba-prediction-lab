@@ -14,6 +14,8 @@ build/
 data/*
 !data/README.md
 !data/sources.json
+local/
+outputs/
 models/
 artifacts/
-reports/generated/
+reports/
