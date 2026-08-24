@@ -81,6 +81,26 @@ python -m keiba_prediction_lab.cli train-model local/training.csv --output local
 
 ### 3. 予測前に入力一式を監査する
 
+モデルの時間順性能を検証する場合は、学習後・校正後・評価後の境界を先に `local/windows.json` へ固定します。
+
+```json
+[
+  {
+    "train_end": "2025-10-31T23:59:59+09:00",
+    "calibration_end": "2025-11-30T23:59:59+09:00",
+    "evaluation_end": "2025-12-31T23:59:59+09:00"
+  }
+]
+```
+
+```bash
+python -m keiba_prediction_lab.cli evaluate-walk-forward \
+  local/training.csv local/windows.json \
+  --report reports/walk-forward.json
+```
+
+各窓は必ず「学習→校正→未来評価」の順とし、評価期間の重複を拒否します。標準出力にはMarkdown、`--report`には学習CSVと窓定義のSHA-256を含む上書き不可のJSONを保存します。窓を結果に合わせて自動選択する機能はありません。
+
 ```bash
 python -m keiba_prediction_lab.cli audit-race-inputs \
   local/model.json \

@@ -45,6 +45,10 @@ from .model_artifact import (
     train_local_model_artifact,
 )
 from .prediction_report import build_prediction_bundle_markdown
+from .walk_forward_report import (
+    evaluate_local_walk_forward,
+    save_walk_forward_artifact,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -136,6 +140,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     prediction_report.add_argument("directory", type=Path)
     prediction_report.add_argument("--output", type=Path)
+
+    walk_forward = subparsers.add_parser(
+        "evaluate-walk-forward",
+        help="run chronological model evaluation from local training data",
+    )
+    walk_forward.add_argument("training", type=Path)
+    walk_forward.add_argument("windows", type=Path)
+    walk_forward.add_argument("--report", type=Path)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -386,6 +398,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "error": str(error),
             }, ensure_ascii=False, indent=2))
             return 1
+        return 0
+
+    if args.command == "evaluate-walk-forward":
+        try:
+            artifact = evaluate_local_walk_forward(args.training, args.windows)
+            if args.report is not None:
+                save_walk_forward_artifact(artifact, args.report)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(artifact.to_markdown(), end="")
         return 0
 
     if args.command == "compare-bet-type-reports":

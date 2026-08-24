@@ -245,6 +245,13 @@ from .walk_forward import (
     WalkForwardWindow,
     run_walk_forward,
 )
+from .walk_forward_report import (
+    WALK_FORWARD_ARTIFACT_SCHEMA_VERSION,
+    WalkForwardArtifact,
+    evaluate_local_walk_forward,
+    load_walk_forward_windows_bytes,
+    save_walk_forward_artifact,
+)
 
 __all__ = [
     "AuditedPredictionBundle",
@@ -343,6 +350,8 @@ __all__ = [
     "WalkForwardFoldResult",
     "WalkForwardResult",
     "WalkForwardWindow",
+    "WalkForwardArtifact",
+    "WALK_FORWARD_ARTIFACT_SCHEMA_VERSION",
     "SourceStatus",
     "TARGET_COLUMNS",
     "TRAINING_COLUMNS",
@@ -380,6 +389,7 @@ __all__ = [
     "compare_trifecta_generators",
     "diagnose_segments",
     "evaluate_fixed_stake",
+    "evaluate_local_walk_forward",
     "evaluate_bet_type_race_directories",
     "evaluate_frozen_bet_type_candidates",
     "evaluate_ticket_results_by_bet_type",
@@ -403,6 +413,7 @@ __all__ = [
     "load_local_pace_scenario",
     "load_targets_csv",
     "load_training_csv",
+    "load_walk_forward_windows_bytes",
     "load_trained_model_artifact",
     "load_trained_model_artifact_bytes",
     "load_frozen_prediction",
@@ -426,6 +437,7 @@ __all__ = [
     "save_local_pipeline_run",
     "save_local_training_bundle",
     "save_trained_model_artifact",
+    "save_walk_forward_artifact",
     "save_race_prediction_bundle",
     "save_race_context",
     "settle_frozen_bet_type_candidates",
