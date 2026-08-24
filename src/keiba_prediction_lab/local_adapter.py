@@ -38,6 +38,9 @@ class LocalFeatureBundle:
     history_sha256: str
     targets_sha256: str
     input_data_version: str
+    race_id: str
+    scheduled_at: datetime
+    observed_at: datetime
     features: tuple[FeatureRow, ...]
 
 
@@ -303,15 +306,20 @@ def build_local_feature_bundle(
     version_hash = hashlib.sha256(
         f"history:{history_hash}\ntargets:{targets_hash}".encode("utf-8")
     ).hexdigest()
+    history = _load_history_bytes(history_content, history_source.name)
+    targets = _load_targets_bytes(targets_content, targets_source.name)
     features = generate_features(
-        _load_history_bytes(history_content, history_source.name),
-        _load_targets_bytes(targets_content, targets_source.name),
+        history,
+        targets,
         prior_strength=prior_strength,
     )
     return LocalFeatureBundle(
         history_sha256=history_hash,
         targets_sha256=targets_hash,
         input_data_version=f"sha256:{version_hash}",
+        race_id=targets[0].race_id,
+        scheduled_at=targets[0].scheduled_at,
+        observed_at=targets[0].observed_at,
         features=features,
     )
 
@@ -321,10 +329,13 @@ def save_local_feature_bundle(
 ) -> None:
     """Write a new JSON feature artifact without overwriting existing output."""
     payload = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "history_sha256": bundle.history_sha256,
         "targets_sha256": bundle.targets_sha256,
         "input_data_version": bundle.input_data_version,
+        "race_id": bundle.race_id,
+        "scheduled_at": bundle.scheduled_at.isoformat(),
+        "observed_at": bundle.observed_at.isoformat(),
         "features": [
             {
                 **asdict(row),

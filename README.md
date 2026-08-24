@@ -40,6 +40,7 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli audit-csv tests/fixtures/synth
 PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-features local/history.csv local/targets.csv --output local/features.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli prepare-training local/training.csv --output local/training.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli train-model local/training.csv --output local/model.json
+PYTHONPATH=src python -m keiba_prediction_lab.cli predict-race local/model.json local/history.csv local/targets.csv local/pace-profiles.csv local/pace-scenario.json --frozen-at 2026-02-01T10:05:00+09:00 --output outputs/race-1
 PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-bet-types outputs/race-1 outputs/race-2 --report reports/bet-types-evaluation.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli compare-bet-type-reports reports/baseline.json reports/candidate.json
 PYTHONPATH=src python -m keiba_prediction_lab.cli bootstrap-bet-type-reports reports/baseline.json reports/candidate.json --samples 10000 --seed 0
