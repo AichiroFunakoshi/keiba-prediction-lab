@@ -20,6 +20,7 @@ from .bet_type_bootstrap import (
     bootstrap_bet_type_evaluation_artifacts,
     bootstrap_bet_type_evaluation_report_files,
 )
+from .bundle_audit import PredictionBundleAudit, audit_prediction_bundle
 from .bet_type_forecast import (
     BET_TYPE_FORECAST_SCHEMA_VERSION,
     BET_TYPE_GENERATOR_VERSION,
@@ -309,6 +310,7 @@ __all__ = [
     "PaceRunnerProfile",
     "PredictionRecord",
     "PredictionPhase",
+    "PredictionBundleAudit",
     "PortfolioEvaluation",
     "RedistributionStatus",
     "ResultRecord",
@@ -345,6 +347,7 @@ __all__ = [
     "ShadowPortfolioReport",
     "assert_pre_race_features",
     "audit_standard_csv",
+    "audit_prediction_bundle",
     "binary_brier_score",
     "build_local_feature_bundle",
     "build_local_race_prediction",

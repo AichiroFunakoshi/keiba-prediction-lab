@@ -116,8 +116,9 @@ def save_frozen_prediction(snapshot: FrozenPrediction, path: str | Path) -> str:
     return digest
 
 
-def load_frozen_prediction(path: str | Path) -> FrozenPrediction:
-    envelope = json.loads(Path(path).read_text(encoding="utf-8"))
+def load_frozen_prediction_bytes(content: bytes) -> FrozenPrediction:
+    """Load one immutable byte snapshot of a frozen prediction."""
+    envelope = json.loads(content.decode("utf-8"))
     if envelope.get("schema_version") != "1.0":
         raise ValueError("unsupported frozen prediction schema_version")
     payload = envelope.get("payload")
@@ -151,6 +152,10 @@ def load_frozen_prediction(path: str | Path) -> FrozenPrediction:
         predictions=predictions,
         trifecta_tickets=tickets,
     )
+
+
+def load_frozen_prediction(path: str | Path) -> FrozenPrediction:
+    return load_frozen_prediction_bytes(Path(path).read_bytes())
 
 
 @dataclass(frozen=True)

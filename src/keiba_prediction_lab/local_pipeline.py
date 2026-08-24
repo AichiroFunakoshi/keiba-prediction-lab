@@ -32,6 +32,9 @@ PACE_PROFILE_COLUMNS = frozenset({
 PACE_SCENARIO_KEYS = frozenset({
     "race_id", "observed_at", "expected_pace", "confidence",
 })
+LOCAL_INPUT_HASH_KEYS = frozenset({
+    "model", "history", "targets", "pace_profiles", "pace_scenario",
+})
 
 
 @dataclass(frozen=True)
@@ -54,16 +57,7 @@ class LocalPipelineRun:
             "pace_profiles": self.pace_profiles_sha256,
             "pace_scenario": self.pace_scenario_sha256,
         }
-        if any(
-            len(value) != 64
-            or any(character not in "0123456789abcdef" for character in value)
-            for value in component_hashes.values()
-        ):
-            raise ValueError("local pipeline input hashes must be lowercase SHA-256")
-        version_source = "\n".join(
-            f"{key}:{component_hashes[key]}" for key in sorted(component_hashes)
-        )
-        expected_version = f"sha256:{_sha256(version_source.encode('utf-8'))}"
+        expected_version = build_local_input_data_version(component_hashes)
         if self.input_data_version != expected_version:
             raise ValueError("input_data_version must match local input hashes")
         if (
@@ -75,6 +69,22 @@ class LocalPipelineRun:
 
 def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def build_local_input_data_version(component_hashes: dict[str, str]) -> str:
+    """Combine the five exact local-input hashes into one stable version."""
+    if component_hashes.keys() != LOCAL_INPUT_HASH_KEYS:
+        raise ValueError("local input hashes must contain exactly five components")
+    if any(
+        len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+        for value in component_hashes.values()
+    ):
+        raise ValueError("local pipeline input hashes must be lowercase SHA-256")
+    version_source = "\n".join(
+        f"{key}:{component_hashes[key]}" for key in sorted(component_hashes)
+    )
+    return f"sha256:{_sha256(version_source.encode('utf-8'))}"
 
 
 def _csv_rows(
@@ -212,10 +222,7 @@ def build_local_race_prediction(
         "pace_profiles": _sha256(profile_content),
         "pace_scenario": _sha256(scenario_content),
     }
-    version_source = "\n".join(
-        f"{key}:{component_hashes[key]}" for key in sorted(component_hashes)
-    )
-    input_data_version = f"sha256:{_sha256(version_source.encode('utf-8'))}"
+    input_data_version = build_local_input_data_version(component_hashes)
     prediction = run_race_prediction_pipeline(
         artifact.model,
         features.features,

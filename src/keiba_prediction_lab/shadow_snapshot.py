@@ -167,8 +167,9 @@ def _load_combination(payload: dict[str, object]) -> TrifectaCombination:
     )
 
 
-def load_frozen_shadow_forecast(path: str | Path) -> FrozenShadowForecast:
-    envelope = json.loads(Path(path).read_text(encoding="utf-8"))
+def load_frozen_shadow_forecast_bytes(content: bytes) -> FrozenShadowForecast:
+    """Load one immutable byte snapshot of a shadow forecast."""
+    envelope = json.loads(content.decode("utf-8"))
     if envelope.get("schema_version") != SHADOW_SNAPSHOT_SCHEMA_VERSION:
         raise ValueError("unsupported frozen shadow schema_version")
     payload = envelope.get("payload")
@@ -208,3 +209,7 @@ def load_frozen_shadow_forecast(path: str | Path) -> FrozenShadowForecast:
         generator_version=payload["generator_version"],
         forecast=forecast,
     )
+
+
+def load_frozen_shadow_forecast(path: str | Path) -> FrozenShadowForecast:
+    return load_frozen_shadow_forecast_bytes(Path(path).read_bytes())
