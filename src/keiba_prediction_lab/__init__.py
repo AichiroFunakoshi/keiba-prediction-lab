@@ -139,6 +139,15 @@ from .metrics import (
     top1_accuracy,
     top3_unordered_accuracy,
 )
+from .local_adapter import (
+    HISTORY_COLUMNS,
+    TARGET_COLUMNS,
+    LocalFeatureBundle,
+    build_local_feature_bundle,
+    load_history_csv,
+    load_targets_csv,
+    save_local_feature_bundle,
+)
 from .model import ConditionalLogitModel, TrainingRow, fit_conditional_logit
 from .pace import (
     PACE_GENERATOR_VERSION,
@@ -249,6 +258,7 @@ __all__ = [
     "FrozenTrifectaTicket",
     "HitTransition",
     "FeatureRow",
+    "HISTORY_COLUMNS",
     "PACE_GENERATOR_VERSION",
     "MINIMUM_RECOMMENDED_RACES",
     "PIPELINE_MANIFEST_SCHEMA_VERSION",
@@ -283,6 +293,8 @@ __all__ = [
     "WalkForwardResult",
     "WalkForwardWindow",
     "SourceStatus",
+    "TARGET_COLUMNS",
+    "LocalFeatureBundle",
     "SegmentDiagnostic",
     "SHADOW_SNAPSHOT_SCHEMA_VERSION",
     "ShadowPortfolio",
@@ -290,6 +302,7 @@ __all__ = [
     "assert_pre_race_features",
     "audit_standard_csv",
     "binary_brier_score",
+    "build_local_feature_bundle",
     "binary_log_loss",
     "bootstrap_bet_type_evaluation_artifacts",
     "bootstrap_bet_type_evaluation_report_files",
@@ -326,6 +339,8 @@ __all__ = [
     "evaluate_baseline_predictions",
     "horse_history_baseline",
     "load_source_registry",
+    "load_history_csv",
+    "load_targets_csv",
     "load_frozen_prediction",
     "load_frozen_bet_type_forecast",
     "load_bet_type_evaluation_artifact",
@@ -343,6 +358,7 @@ __all__ = [
     "save_bet_type_evaluation_artifact",
     "save_bet_type_race_payouts",
     "save_frozen_shadow_forecast",
+    "save_local_feature_bundle",
     "save_race_prediction_bundle",
     "save_race_context",
     "settle_frozen_bet_type_candidates",

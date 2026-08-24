@@ -25,6 +25,7 @@ from .bet_type_segment_diagnostics import (
     diagnose_bet_type_segment_report_files,
 )
 from .data_audit import audit_standard_csv, load_source_registry
+from .local_adapter import build_local_feature_bundle, save_local_feature_bundle
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -38,6 +39,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     audit = subparsers.add_parser("audit-csv", help="audit a standardized CSV")
     audit.add_argument("path", type=Path)
+
+    prepare = subparsers.add_parser(
+        "prepare-features",
+        help="build leakage-checked features from separate local CSV files",
+    )
+    prepare.add_argument("history", type=Path)
+    prepare.add_argument("targets", type=Path)
+    prepare.add_argument("--output", type=Path, required=True)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -129,6 +138,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.report is not None:
             save_bet_type_evaluation_artifact(artifact, args.report)
         print(artifact.to_markdown(), end="")
+        return 0
+
+    if args.command == "prepare-features":
+        bundle = build_local_feature_bundle(args.history, args.targets)
+        save_local_feature_bundle(bundle, args.output)
+        print(json.dumps({
+            "output": str(args.output),
+            "feature_count": len(bundle.features),
+            "input_data_version": bundle.input_data_version,
+            "history_sha256": bundle.history_sha256,
+            "targets_sha256": bundle.targets_sha256,
+        }, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "compare-bet-type-reports":
