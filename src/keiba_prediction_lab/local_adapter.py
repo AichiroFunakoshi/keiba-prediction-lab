@@ -41,6 +41,7 @@ class LocalFeatureBundle:
     race_id: str
     scheduled_at: datetime
     observed_at: datetime
+    history_row_count: int
     features: tuple[FeatureRow, ...]
 
 
@@ -320,6 +321,7 @@ def build_local_feature_bundle(
         race_id=targets[0].race_id,
         scheduled_at=targets[0].scheduled_at,
         observed_at=targets[0].observed_at,
+        history_row_count=len(history),
         features=features,
     )
 
@@ -336,6 +338,7 @@ def save_local_feature_bundle(
         "race_id": bundle.race_id,
         "scheduled_at": bundle.scheduled_at.isoformat(),
         "observed_at": bundle.observed_at.isoformat(),
+        "history_row_count": bundle.history_row_count,
         "features": [
             {
                 **asdict(row),
