@@ -158,6 +158,7 @@ def serve_read_only_api(
     prediction_directory: str | Path | None = None,
     walk_forward_report: str | Path | None = None,
     win5_forecast: str | Path | None = None,
+    race_day_manifest: str | Path | None = None,
     port: int = DEFAULT_READ_ONLY_API_PORT,
 ) -> None:
     """Audit selected artifacts, then serve their immutable snapshot forever."""
@@ -165,6 +166,7 @@ def serve_read_only_api(
         prediction_directory=prediction_directory,
         walk_forward_report=walk_forward_report,
         win5_forecast=win5_forecast,
+        race_day_manifest=race_day_manifest,
     )
     with create_read_only_server(snapshot, port=port) as server:
         actual_port = server.server_address[1]

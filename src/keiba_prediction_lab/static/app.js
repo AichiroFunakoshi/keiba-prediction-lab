@@ -1,6 +1,8 @@
 "use strict";
 
 const byId = (id) => document.getElementById(id);
+let currentState = null;
+let selectedVenueIndex = 0;
 const percent = (value) => `${(value * 100).toFixed(1)}%`;
 const dateTime = (value) => value ? new Intl.DateTimeFormat("ja-JP", {
   dateStyle: "medium", timeStyle: "short"
@@ -25,7 +27,11 @@ function renderTicket(prediction) {
 function renderRanking(prediction) {
   const body = byId("ranking-body");
   body.replaceChildren();
-  prediction.runners.forEach((runner) => {
+  const visibleRunners = prediction.runners.slice(0, 8);
+  byId("ranking-summary").textContent = prediction.runners.length > 8
+    ? `全${prediction.runners.length}頭中、1着確率上位8頭を表示`
+    : `全${prediction.runners.length}頭`;
+  visibleRunners.forEach((runner) => {
     const row = document.createElement("tr");
     const rank = document.createElement("td");
     rank.append(node("span", "rank-pill", String(runner.predicted_rank)));
@@ -105,6 +111,95 @@ function renderPrediction(prediction) {
   renderShadows(prediction);
 }
 
+function compactTicket(selection, target) {
+  target.replaceChildren();
+  selection.forEach((horseId, index) => {
+    if (index > 0) target.append(node("span", "compact-arrow", "→"));
+    target.append(node("span", "compact-number", horseId));
+  });
+}
+
+function showDetail(prediction) {
+  byId("dashboard").hidden = true;
+  byId("detail-app").hidden = false;
+  byId("back-overview").hidden = !currentState?.race_day;
+  renderPrediction(prediction);
+  renderValidation(currentState?.walk_forward || null);
+  window.scrollTo(0, 0);
+}
+
+function renderVenue(raceDay, venueIndex) {
+  selectedVenueIndex = venueIndex;
+  const venue = raceDay.venues[venueIndex];
+  byId("race-title").textContent = `${venue.venue} 全レース`;
+  byId("venue-tabs").querySelectorAll("button").forEach((button, index) => {
+    button.setAttribute("aria-selected", String(index === venueIndex));
+  });
+  const rows = byId("race-rows");
+  rows.replaceChildren();
+  venue.races.forEach((race) => {
+    const prediction = race.prediction;
+    const winner = prediction.runners[0];
+    const row = node("button", "ledger-row");
+    row.type = "button";
+    row.setAttribute("aria-label", `${venue.venue} ${race.race_number}Rの詳細を見る`);
+    row.append(node("strong", "race-number", `${race.race_number}R`));
+    row.append(node("time", "race-time", new Intl.DateTimeFormat("ja-JP", {
+      hour: "2-digit", minute: "2-digit"
+    }).format(new Date(prediction.scheduled_at))));
+    const winnerCell = node("span", "ledger-winner");
+    winnerCell.append(node("b", "winner-mark", `${winner.predicted_rank}位`));
+    winnerCell.append(node("strong", "", winner.horse_id));
+    row.append(winnerCell);
+    row.append(node("b", "ledger-probability", percent(winner.win_probability)));
+    const ticket = node("span", "compact-ticket ledger-ticket");
+    compactTicket(prediction.actual.selection, ticket);
+    row.append(ticket);
+    const detail = node("span", "detail-link", "詳細を見る");
+    row.append(detail);
+    row.addEventListener("click", () => showDetail(prediction));
+    rows.append(row);
+  });
+  if (venue.races.length) {
+    compactTicket(
+      venue.races[0].prediction.actual.selection,
+      byId("dashboard-featured-ticket")
+    );
+  }
+}
+
+function renderDashboard(raceDay) {
+  byId("detail-app").hidden = true;
+  byId("dashboard").hidden = false;
+  byId("dashboard-toolbar").hidden = false;
+  byId("race-ledger").hidden = false;
+  byId("back-overview").hidden = true;
+  byId("dashboard-date").textContent = new Intl.DateTimeFormat("ja-JP", {
+    dateStyle: "full"
+  }).format(new Date(`${raceDay.race_date}T00:00:00+09:00`));
+  byId("scheduled-at").textContent = "開催日予測";
+  const tabs = byId("venue-tabs");
+  tabs.replaceChildren();
+  raceDay.venues.forEach((venue, index) => {
+    const tab = node("button", "venue-tab", venue.venue);
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.addEventListener("click", () => renderVenue(raceDay, index));
+    tabs.append(tab);
+  });
+  renderVenue(raceDay, Math.min(selectedVenueIndex, raceDay.venues.length - 1));
+}
+
+function renderWin5Only() {
+  byId("detail-app").hidden = true;
+  byId("dashboard").hidden = false;
+  byId("dashboard-toolbar").hidden = true;
+  byId("race-ledger").hidden = true;
+  byId("back-overview").hidden = true;
+  byId("race-title").textContent = "WIN5影予測";
+  byId("scheduled-at").textContent = "研究用・0円";
+}
+
 function renderValidation(walkForward) {
   byId("validation").hidden = !walkForward;
   byId("empty-validation").hidden = Boolean(walkForward);
@@ -123,7 +218,7 @@ function renderWin5(win5) {
   legs.replaceChildren();
   win5.legs.forEach((leg, index) => {
     const item = node("article", "win5-leg");
-    item.append(node("span", "win5-leg-number", `第${index + 1}対象`));
+    item.append(node("span", "win5-leg-number", `対象${index + 1}`));
     item.append(node("strong", "", leg.selected_horse_id));
     item.append(node("small", "", leg.race_id));
     item.append(node("b", "", percent(leg.selected_win_probability)));
@@ -142,15 +237,24 @@ async function loadState() {
     if (!response.ok) throw new Error(`読み込みに失敗しました（${response.status}）`);
     const state = await response.json();
     if (!state.is_valid) throw new Error("監査済みデータではありません");
+    currentState = state;
     byId("context-policy").textContent = state.actual_purchase_policy;
-    renderPrediction(state.prediction);
-    renderWin5(state.win5);
-    renderValidation(state.walk_forward);
+    if (state.race_day) {
+      renderDashboard(state.race_day);
+      renderWin5(state.win5);
+    } else if (state.prediction) {
+      showDetail(state.prediction);
+    } else if (state.win5) {
+      renderWin5Only();
+      renderWin5(state.win5);
+    } else {
+      showDetail(null);
+    }
     byId("loading").hidden = true;
-    byId("app").hidden = false;
   } catch (error) {
     byId("loading").hidden = true;
-    byId("app").hidden = true;
+    byId("dashboard").hidden = true;
+    byId("detail-app").hidden = true;
     byId("error").textContent = error instanceof Error ? error.message : "読み込みに失敗しました";
     byId("error").hidden = false;
   } finally {
@@ -159,4 +263,7 @@ async function loadState() {
 }
 
 byId("reload").addEventListener("click", loadState);
+byId("back-overview").addEventListener("click", () => {
+  if (currentState?.race_day) renderDashboard(currentState.race_day);
+});
 loadState();

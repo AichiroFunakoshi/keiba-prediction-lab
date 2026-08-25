@@ -13,13 +13,55 @@
     <div class="audit-badge">監査済み・読み取り専用</div>
     <div class="race-title" id="race-title">予測データ</div>
     <time id="scheduled-at">—</time>
+    <button id="back-overview" type="button" hidden>全レースへ戻る</button>
     <button id="reload" type="button">再読込</button>
   </header>
 
   <div id="loading" class="state-message" role="status">監査済みデータを読み込んでいます</div>
   <div id="error" class="state-message error" role="alert" hidden></div>
 
-  <main id="app" class="app-shell" hidden>
+  <main id="dashboard" class="dashboard" hidden>
+    <section id="dashboard-toolbar" class="dashboard-toolbar" aria-labelledby="dashboard-date-label">
+      <div class="date-block">
+        <span id="dashboard-date-label">開催日</span>
+        <strong id="dashboard-date">—</strong>
+      </div>
+      <div class="venue-picker">
+        <span>競馬場を選択</span>
+        <div id="venue-tabs" class="venue-tabs" role="tablist"></div>
+      </div>
+      <div class="dashboard-featured">
+        <span>先頭レースの正式候補｜三連単 1点100円</span>
+        <div id="dashboard-featured-ticket" class="compact-ticket"></div>
+      </div>
+    </section>
+
+    <section id="race-ledger" class="race-ledger" aria-labelledby="race-ledger-title">
+      <h1 id="race-ledger-title" class="visually-hidden">全レース予測一覧</h1>
+      <div class="ledger-header" aria-hidden="true">
+        <span>R</span><span>発走時刻</span><span>予測1着</span><span>1着的中率</span><span>正式候補 三連単（1点100円）</span><span>詳細</span>
+      </div>
+      <div id="race-rows" class="race-rows"></div>
+    </section>
+
+    <section id="win5" class="win5-section dashboard-win5" aria-labelledby="win5-title" hidden>
+      <div class="section-heading">
+        <h2 id="win5-title">WIN5影予測（購入しない・0円）</h2>
+        <span>研究用・5レース</span>
+        <p>購入は行いません。あくまで研究目的の予測です。</p>
+      </div>
+      <div class="dashboard-win5-body">
+        <div id="win5-legs" class="win5-legs"></div>
+        <div class="win5-summary">
+          <div><span>5レース同時成立確率（影）</span><strong id="win5-probability">—</strong></div>
+          <p id="win5-assumption">—</p>
+        </div>
+      </div>
+    </section>
+    <p class="dashboard-disclaimer">本予測は研究目的のものであり、競馬の結果を保証するものではありません。</p>
+  </main>
+
+  <main id="detail-app" class="app-shell" hidden>
     <aside class="context-panel" aria-labelledby="context-title">
       <h2 id="context-title">現在の研究条件</h2>
       <dl>
@@ -52,6 +94,7 @@
               <p class="neutral-note">最上位候補であり、的中を保証する表示ではありません。</p>
             </article>
             <div class="ranking-wrap">
+              <p id="ranking-summary" class="ranking-summary">上位候補</p>
               <table>
                 <thead><tr><th>順位</th><th>馬ID</th><th>1着確率</th><th>3着内確率</th></tr></thead>
                 <tbody id="ranking-body"></tbody>
@@ -71,18 +114,6 @@
       </section>
 
       <section id="empty-prediction" class="empty-panel" hidden>予測バンドルは選択されていません。</section>
-
-      <section id="win5" class="win5-section" aria-labelledby="win5-title" hidden>
-        <div class="section-heading">
-          <h2 id="win5-title">WIN5影予測（購入しない・0円）</h2>
-          <span>研究用・5レース</span>
-        </div>
-        <div id="win5-legs" class="win5-legs"></div>
-        <div class="win5-summary">
-          <div><span>5レース同時成立確率</span><strong id="win5-probability">—</strong></div>
-          <p id="win5-assumption">—</p>
-        </div>
-      </section>
 
       <section id="validation" class="validation" aria-labelledby="validation-title">
         <h2 id="validation-title">モデル検証</h2>
