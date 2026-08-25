@@ -40,6 +40,7 @@ from .local_pipeline import (
     build_local_race_prediction,
     save_local_pipeline_run,
 )
+from .local_http import DEFAULT_READ_ONLY_API_PORT, serve_read_only_api
 from .model_artifact import (
     ModelTrainingParameters,
     save_trained_model_artifact,
@@ -163,6 +164,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     inspect_app.add_argument("--prediction-bundle", type=Path)
     inspect_app.add_argument("--walk-forward-report", type=Path)
+
+    serve_api = subparsers.add_parser(
+        "serve-read-only-api",
+        help="serve audited app state on the IPv4 loopback address only",
+    )
+    serve_api.add_argument("--prediction-bundle", type=Path)
+    serve_api.add_argument("--walk-forward-report", type=Path)
+    serve_api.add_argument("--port", type=int, default=DEFAULT_READ_ONLY_API_PORT)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -466,6 +475,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             "is_valid": True,
             **snapshot.to_dict(),
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "serve-read-only-api":
+        try:
+            serve_read_only_api(
+                prediction_directory=args.prediction_bundle,
+                walk_forward_report=args.walk_forward_report,
+                port=args.port,
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
         return 0
 
     if args.command == "compare-bet-type-reports":

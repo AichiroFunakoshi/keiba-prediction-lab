@@ -159,6 +159,16 @@ python -m keiba_prediction_lab.cli inspect-app-state \
   --walk-forward-report reports/walk-forward.json
 ```
 
+同じ監査済みデータを、将来のローカル画面が読むHTTP APIとして配信できます。外部ネットワークには公開せず、IPv4ループバックアドレス`127.0.0.1`だけで待ち受けます。
+
+```bash
+python -m keiba_prediction_lab.cli serve-read-only-api \
+  --prediction-bundle outputs/race-1 \
+  --walk-forward-report reports/walk-forward.json
+```
+
+起動後は`http://127.0.0.1:8765/api/v1/state`で監査済みスナップショット、`http://127.0.0.1:8765/health`で稼働状態を確認できます。終了は`Control-C`です。この段階は読み取り専用APIであり、視覚的な操作画面、ファイル選択、学習、予測、保存、自動投票は提供しません。入力成果物は変更せず、書込み系HTTPメソッドも拒否します。
+
 ### 6. レース後に評価する
 
 結果・払戻・レース条件は、発走前予測を変更せず別ファイルとして追加します。
