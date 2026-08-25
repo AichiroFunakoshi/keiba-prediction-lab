@@ -82,6 +82,19 @@ td.probability { color: #175ac2; font-weight: 750; font-variant-numeric: tabular
 .shadow-value { text-align: right; font-variant-numeric: tabular-nums; }
 .shadow-note { margin: 10px 0 0; color: #63748d; font-size: 12px; }
 
+.win5-section { margin-top: 14px; padding: 14px 16px; border: 1px solid #b9c8dc; border-radius: 7px; background: #fff; }
+.win5-section h2 { margin: 0; font-size: 18px; }
+.win5-legs { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); margin-top: 12px; border-top: 1px solid #d7deea; border-bottom: 1px solid #d7deea; }
+.win5-leg { min-width: 0; padding: 12px 16px; border-left: 1px solid #d7deea; }
+.win5-leg:first-child { border-left: 0; }
+.win5-leg-number, .win5-leg small { display: block; color: #657792; font-size: 11px; }
+.win5-leg strong { display: block; margin: 5px 0; overflow: hidden; color: #10264a; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.win5-leg b { display: block; margin-top: 7px; color: #175ac2; font-size: 17px; font-variant-numeric: tabular-nums; }
+.win5-summary { display: grid; grid-template-columns: 240px 1fr; align-items: center; gap: 20px; margin-top: 11px; }
+.win5-summary span { display: block; color: #596b83; font-size: 11px; }
+.win5-summary strong { display: block; margin-top: 2px; color: #175ac2; font-size: 24px; font-variant-numeric: tabular-nums; }
+.win5-summary p { margin: 0; color: #63748d; font-size: 12px; }
+
 .validation { display: grid; grid-template-columns: 260px repeat(4, minmax(100px, 1fr)) 1.4fr; align-items: center; margin-top: 14px; border: 1px solid #b9c8dc; border-radius: 7px; background: #f7f9fc; }
 .validation h2, .validation .metric, .validation > p { padding: 13px 18px; }
 .validation .metric { border-left: 1px solid #c8d2df; text-align: center; }
@@ -114,6 +127,10 @@ td.probability { color: #175ac2; font-weight: 750; font-variant-numeric: tabular
   .ticket-number { min-width: 62px; padding: 8px 12px; font-size: 32px; }
   .ticket-arrow { font-size: 24px; }
   .winner-grid, .shadow-groups { grid-template-columns: 1fr; }
+  .win5-legs { grid-template-columns: 1fr; }
+  .win5-leg { border-top: 1px solid #d7deea; border-left: 0; }
+  .win5-leg:first-child { border-top: 0; }
+  .win5-summary { grid-template-columns: 1fr; }
   .shadow-matrix { overflow-x: auto; }
   .validation { grid-template-columns: 1fr 1fr; }
 }
