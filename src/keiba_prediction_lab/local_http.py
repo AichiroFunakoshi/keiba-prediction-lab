@@ -2,6 +2,7 @@
 
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib.resources import files
 from pathlib import Path
 from typing import TypeAlias
 
@@ -29,8 +30,12 @@ def _handler(snapshot: ReadOnlyAppSnapshot) -> HandlerClass:
     service = json.dumps({
         "service": "keiba-prediction-lab",
         "mode": "read-only",
-        "endpoints": ["/health", "/api/v1/state"],
+        "endpoints": ["/", "/health", "/api/v1/state"],
     }, separators=(",", ":")).encode("utf-8")
+    static_root = files("keiba_prediction_lab").joinpath("static")
+    index = static_root.joinpath("index.html").read_bytes()
+    stylesheet = static_root.joinpath("app.css").read_bytes()
+    script = static_root.joinpath("app.js").read_bytes()
 
     class ReadOnlyHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -45,6 +50,27 @@ def _handler(snapshot: ReadOnlyAppSnapshot) -> HandlerClass:
             elif path == "/api/v1/state":
                 self._send_json(200, state)
             elif path == "/":
+                self._send_content(
+                    200,
+                    index,
+                    content_type="text/html; charset=utf-8",
+                    content_security_policy=(
+                        "default-src 'none'; style-src 'self'; "
+                        "script-src 'self'; connect-src 'self'; "
+                        "img-src 'self'; base-uri 'none'; frame-ancestors 'none'"
+                    ),
+                )
+            elif path == "/app.css":
+                self._send_content(
+                    200, stylesheet, content_type="text/css; charset=utf-8"
+                )
+            elif path == "/app.js":
+                self._send_content(
+                    200,
+                    script,
+                    content_type="text/javascript; charset=utf-8",
+                )
+            elif path == "/service":
                 self._send_json(200, service)
             else:
                 self._send_json(404, b'{"error":"not found"}')
@@ -80,12 +106,28 @@ def _handler(snapshot: ReadOnlyAppSnapshot) -> HandlerClass:
             *,
             extra_headers: tuple[tuple[str, str], ...] = (),
         ) -> None:
+            self._send_content(
+                status,
+                content,
+                content_type="application/json; charset=utf-8",
+                extra_headers=extra_headers,
+            )
+
+        def _send_content(
+            self,
+            status: int,
+            content: bytes,
+            *,
+            content_type: str,
+            content_security_policy: str = "default-src 'none'",
+            extra_headers: tuple[tuple[str, str], ...] = (),
+        ) -> None:
             self.send_response(status)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Content-Security-Policy", "default-src 'none'")
+            self.send_header("Content-Security-Policy", content_security_policy)
             self.send_header("Referrer-Policy", "no-referrer")
             for name, value in extra_headers:
                 self.send_header(name, value)

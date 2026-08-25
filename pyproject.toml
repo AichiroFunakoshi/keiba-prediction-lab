@@ -13,3 +13,6 @@ authors = [{ name = "Aichiro Funakoshi" }]
 
 [project.scripts]
 keiba-lab = "keiba_prediction_lab.cli:main"
+
+[tool.setuptools.package-data]
+keiba_prediction_lab = ["static/*.html", "static/*.css", "static/*.js"]
