@@ -169,6 +169,33 @@ python -m keiba_prediction_lab.cli serve-read-only-api \
   --win5-forecast outputs/win5-2026-08-30.json
 ```
 
+開催日の全レースを入口画面にまとめる場合は、開催日マニフェストを用意します。各`prediction_bundle`はマニフェストからの相対パスまたは絶対パスで明示し、画面側は全バンドルを監査してから競馬場タブと1R〜12Rの一覧を作ります。
+
+```json
+{
+  "schema_version": "1.0",
+  "race_date": "2026-08-30",
+  "venues": [
+    {
+      "venue": "新潟",
+      "races": [
+        {"race_number": 1, "prediction_bundle": "outputs/niigata-1R"},
+        {"race_number": 2, "prediction_bundle": "outputs/niigata-2R"}
+      ]
+    }
+  ]
+}
+```
+
+```bash
+python -m keiba_prediction_lab.cli serve-read-only-api \
+  --race-day-manifest race-day-2026-08-30.json \
+  --walk-forward-report reports/walk-forward.json \
+  --win5-forecast outputs/win5-2026-08-30.json
+```
+
+開催日マニフェストを指定すると、最初に競馬場単位の全レース一覧を表示します。一覧は1着候補、1着確率、正式な三連単1点だけを示し、行を選ぶと従来の詳細画面へ移ります。WIN5影予測は一覧画面だけに表示されます。
+
 起動後にブラウザで`http://127.0.0.1:8765/`を開くと、読み取り専用画面を表示できます。正式候補の三連単1点100円、1着確率順位、購入額0円の影予測、ウォークフォワード指標、任意指定したWIN5影予測を別領域で確認できます。WIN5欄は`--win5-forecast`を指定した場合だけ表示され、5点の買い目ではなく対象5レース各1頭の研究用組合せです。`http://127.0.0.1:8765/api/v1/state`は監査済みスナップショット、`http://127.0.0.1:8765/health`は稼働状態を返します。終了は`Control-C`です。
 
 この段階ではファイル選択、学習、予測、保存、自動投票を提供しません。画面の再読込も監査済みスナップショットを読み直すだけであり、入力成果物を変更しません。書込み系HTTPメソッドも拒否します。

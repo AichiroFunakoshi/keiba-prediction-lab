@@ -42,6 +42,22 @@ def _win5_forecast(root: Path) -> Path:
     return path
 
 
+def _race_day_manifest(root: Path, prediction: Path) -> Path:
+    path = root / "race-day.json"
+    path.write_text(json.dumps({
+        "schema_version": "1.0",
+        "race_date": "2026-02-01",
+        "venues": [{
+            "venue": "東京",
+            "races": [{
+                "race_number": 1,
+                "prediction_bundle": str(prediction),
+            }],
+        }],
+    }), encoding="utf-8")
+    return path
+
+
 class ReadOnlyAppSnapshotTest(unittest.TestCase):
     def test_builds_ui_data_without_modifying_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -49,6 +65,7 @@ class ReadOnlyAppSnapshotTest(unittest.TestCase):
             prediction = _saved_bundle(root)
             walk_forward = _walk_forward_report(root)
             win5 = _win5_forecast(root)
+            race_day = _race_day_manifest(root, prediction)
             before_prediction = {
                 path.name: path.read_bytes() for path in prediction.iterdir()
             }
@@ -57,6 +74,7 @@ class ReadOnlyAppSnapshotTest(unittest.TestCase):
                 prediction_directory=prediction,
                 walk_forward_report=walk_forward,
                 win5_forecast=win5,
+                race_day_manifest=race_day,
             )
             payload = snapshot.to_dict()
             after_prediction = {
@@ -79,6 +97,10 @@ class ReadOnlyAppSnapshotTest(unittest.TestCase):
         self.assertEqual(payload["win5"]["stake_yen"], 0)
         self.assertEqual(len(payload["win5"]["legs"]), 5)
         self.assertEqual(payload["win5"]["selection"][0], "winner-1")
+        self.assertEqual(payload["race_day"]["venues"][0]["venue"], "東京")
+        self.assertEqual(
+            payload["race_day"]["venues"][0]["races"][0]["race_number"], 1
+        )
         self.assertEqual(before_prediction, after_prediction)
         self.assertEqual(before_walk_forward, after_walk_forward)
 
@@ -136,6 +158,45 @@ class ReadOnlyAppSnapshotTest(unittest.TestCase):
             win5.write_text("{}", encoding="utf-8")
             with self.assertRaises(ValueError):
                 build_read_only_app_snapshot(win5_forecast=win5)
+
+    def test_rejects_race_day_date_mismatch_and_duplicate_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prediction = _saved_bundle(root)
+            manifest = _race_day_manifest(root, prediction)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["race_date"] = "2026-02-02"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                build_read_only_app_snapshot(race_day_manifest=manifest)
+
+            payload["race_date"] = "2026-02-01"
+            payload["venues"][0]["races"].append(
+                payload["venues"][0]["races"][0].copy()
+            )
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unique"):
+                build_read_only_app_snapshot(race_day_manifest=manifest)
+
+    def test_race_day_resolves_relative_bundle_and_rejects_duplicate_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prediction = _saved_bundle(root)
+            manifest = _race_day_manifest(root, prediction)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["venues"][0]["races"][0]["prediction_bundle"] = "prediction"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            snapshot = build_read_only_app_snapshot(race_day_manifest=manifest)
+            self.assertEqual(snapshot.race_day.venues[0].races[0].race_number, 1)
+
+            manifest.write_text(
+                '{"schema_version":"1.0","schema_version":"1.0",'
+                '"race_date":"2026-02-01","venues":[]}',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "duplicate key"):
+                build_read_only_app_snapshot(race_day_manifest=manifest)
 
 
 if __name__ == "__main__":

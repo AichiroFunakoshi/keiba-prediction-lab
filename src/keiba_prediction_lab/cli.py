@@ -180,6 +180,7 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect_app.add_argument("--prediction-bundle", type=Path)
     inspect_app.add_argument("--walk-forward-report", type=Path)
     inspect_app.add_argument("--win5-forecast", type=Path)
+    inspect_app.add_argument("--race-day-manifest", type=Path)
 
     serve_api = subparsers.add_parser(
         "serve-read-only-api",
@@ -188,6 +189,7 @@ def _build_parser() -> argparse.ArgumentParser:
     serve_api.add_argument("--prediction-bundle", type=Path)
     serve_api.add_argument("--walk-forward-report", type=Path)
     serve_api.add_argument("--win5-forecast", type=Path)
+    serve_api.add_argument("--race-day-manifest", type=Path)
     serve_api.add_argument("--port", type=int, default=DEFAULT_READ_ONLY_API_PORT)
 
     evaluate = subparsers.add_parser(
@@ -516,6 +518,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 prediction_directory=args.prediction_bundle,
                 walk_forward_report=args.walk_forward_report,
                 win5_forecast=args.win5_forecast,
+                race_day_manifest=args.race_day_manifest,
             )
         except (OSError, ValueError, UnicodeError) as error:
             print(json.dumps({
@@ -535,6 +538,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 prediction_directory=args.prediction_bundle,
                 walk_forward_report=args.walk_forward_report,
                 win5_forecast=args.win5_forecast,
+                race_day_manifest=args.race_day_manifest,
                 port=args.port,
             )
         except (OSError, ValueError, UnicodeError) as error:

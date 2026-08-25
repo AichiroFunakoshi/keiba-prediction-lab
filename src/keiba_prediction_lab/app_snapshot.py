@@ -1,6 +1,8 @@
 """Read-only, UI-facing snapshots built only from audited artifacts."""
 
+import json
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from .bundle_audit import load_audited_prediction_bundle
@@ -85,18 +87,38 @@ class Win5AppSnapshot:
 
 
 @dataclass(frozen=True)
+class RaceDayRaceAppSnapshot:
+    race_number: int
+    prediction: PredictionAppSnapshot
+
+
+@dataclass(frozen=True)
+class RaceDayVenueAppSnapshot:
+    venue: str
+    races: tuple[RaceDayRaceAppSnapshot, ...]
+
+
+@dataclass(frozen=True)
+class RaceDayAppSnapshot:
+    race_date: str
+    venues: tuple[RaceDayVenueAppSnapshot, ...]
+
+
+@dataclass(frozen=True)
 class ReadOnlyAppSnapshot:
     policy_version: str
     actual_purchase_policy: str
     prediction: PredictionAppSnapshot | None
     walk_forward: WalkForwardAppSnapshot | None
     win5: Win5AppSnapshot | None = None
+    race_day: RaceDayAppSnapshot | None = None
 
     def __post_init__(self) -> None:
         if (
             self.prediction is None
             and self.walk_forward is None
             and self.win5 is None
+            and self.race_day is None
         ):
             raise ValueError("at least one audited artifact is required")
 
@@ -107,6 +129,7 @@ class ReadOnlyAppSnapshot:
             "prediction": _prediction_dict(self.prediction),
             "walk_forward": _walk_forward_dict(self.walk_forward),
             "win5": _win5_dict(self.win5),
+            "race_day": _race_day_dict(self.race_day),
         }
 
 
@@ -203,17 +226,96 @@ def _win5_snapshot(path: str | Path) -> Win5AppSnapshot:
     )
 
 
+def _race_day_snapshot(path: str | Path) -> RaceDayAppSnapshot:
+    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        value: dict[str, object] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError(f"race-day manifest contains duplicate key: {key}")
+            value[key] = item
+        return value
+
+    manifest_path = Path(path)
+    manifest = json.loads(
+        manifest_path.read_text(encoding="utf-8"),
+        object_pairs_hook=unique_object,
+    )
+    if not isinstance(manifest, dict) or set(manifest) != {
+        "schema_version", "race_date", "venues"
+    }:
+        raise ValueError("invalid race-day manifest keys")
+    if manifest["schema_version"] != "1.0":
+        raise ValueError("unsupported race-day manifest schema_version")
+    if not isinstance(manifest["race_date"], str):
+        raise ValueError("race-day manifest race_date must be a string")
+    try:
+        race_date = date.fromisoformat(manifest["race_date"])
+    except ValueError as error:
+        raise ValueError("race-day manifest race_date must be ISO format") from error
+    raw_venues = manifest["venues"]
+    if not isinstance(raw_venues, list) or not raw_venues:
+        raise ValueError("race-day manifest requires at least one venue")
+    venues: list[RaceDayVenueAppSnapshot] = []
+    seen_venues: set[str] = set()
+    seen_race_ids: set[str] = set()
+    for raw_venue in raw_venues:
+        if not isinstance(raw_venue, dict) or set(raw_venue) != {"venue", "races"}:
+            raise ValueError("invalid race-day venue entry")
+        venue = raw_venue["venue"]
+        raw_races = raw_venue["races"]
+        normalized_venue = venue.strip() if isinstance(venue, str) else ""
+        if not normalized_venue or normalized_venue in seen_venues:
+            raise ValueError("race-day venues must have unique non-empty names")
+        if not isinstance(raw_races, list) or not raw_races:
+            raise ValueError("each race-day venue requires at least one race")
+        races: list[RaceDayRaceAppSnapshot] = []
+        seen_numbers: set[int] = set()
+        for raw_race in raw_races:
+            if not isinstance(raw_race, dict) or set(raw_race) != {
+                "race_number", "prediction_bundle"
+            }:
+                raise ValueError("invalid race-day race entry")
+            race_number = raw_race["race_number"]
+            bundle_path = raw_race["prediction_bundle"]
+            if type(race_number) is not int or not 1 <= race_number <= 12:
+                raise ValueError("race_number must be an integer from 1 to 12")
+            if race_number in seen_numbers:
+                raise ValueError("race numbers must be unique within a venue")
+            if not isinstance(bundle_path, str) or not bundle_path.strip():
+                raise ValueError("prediction_bundle must be a non-empty path")
+            resolved = Path(bundle_path)
+            if not resolved.is_absolute():
+                resolved = manifest_path.parent / resolved
+            prediction = _prediction_snapshot(resolved)
+            scheduled_date = date.fromisoformat(prediction.scheduled_at[:10])
+            if scheduled_date != race_date:
+                raise ValueError("race-day bundle date does not match race_date")
+            if prediction.race_id in seen_race_ids:
+                raise ValueError("race-day bundles must have unique race_id values")
+            races.append(RaceDayRaceAppSnapshot(race_number, prediction))
+            seen_numbers.add(race_number)
+            seen_race_ids.add(prediction.race_id)
+        venues.append(RaceDayVenueAppSnapshot(
+            normalized_venue,
+            tuple(sorted(races, key=lambda row: row.race_number)),
+        ))
+        seen_venues.add(normalized_venue)
+    return RaceDayAppSnapshot(race_date.isoformat(), tuple(venues))
+
+
 def build_read_only_app_snapshot(
     *,
     prediction_directory: str | Path | None = None,
     walk_forward_report: str | Path | None = None,
     win5_forecast: str | Path | None = None,
+    race_day_manifest: str | Path | None = None,
 ) -> ReadOnlyAppSnapshot:
     """Build UI data from explicitly selected and fully audited artifacts."""
     if (
         prediction_directory is None
         and walk_forward_report is None
         and win5_forecast is None
+        and race_day_manifest is None
     ):
         raise ValueError("at least one artifact path is required")
     return ReadOnlyAppSnapshot(
@@ -230,6 +332,10 @@ def build_read_only_app_snapshot(
         win5=(
             _win5_snapshot(win5_forecast)
             if win5_forecast is not None else None
+        ),
+        race_day=(
+            _race_day_snapshot(race_day_manifest)
+            if race_day_manifest is not None else None
         ),
     )
 
@@ -321,5 +427,26 @@ def _win5_dict(value: Win5AppSnapshot | None) -> object:
                 "selected_win_probability": leg.selected_win_probability,
             }
             for leg in value.legs
+        ],
+    }
+
+
+def _race_day_dict(value: RaceDayAppSnapshot | None) -> object:
+    if value is None:
+        return None
+    return {
+        "race_date": value.race_date,
+        "venues": [
+            {
+                "venue": venue.venue,
+                "races": [
+                    {
+                        "race_number": race.race_number,
+                        "prediction": _prediction_dict(race.prediction),
+                    }
+                    for race in venue.races
+                ],
+            }
+            for venue in value.venues
         ],
     }
