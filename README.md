@@ -156,7 +156,8 @@ python -m keiba_prediction_lab.cli report-prediction-bundle outputs/race-1 --out
 ```bash
 python -m keiba_prediction_lab.cli inspect-app-state \
   --prediction-bundle outputs/race-1 \
-  --walk-forward-report reports/walk-forward.json
+  --walk-forward-report reports/walk-forward.json \
+  --win5-forecast outputs/win5-2026-08-30.json
 ```
 
 同じ監査済みデータを、将来のローカル画面が読むHTTP APIとして配信できます。外部ネットワークには公開せず、IPv4ループバックアドレス`127.0.0.1`だけで待ち受けます。
@@ -164,10 +165,11 @@ python -m keiba_prediction_lab.cli inspect-app-state \
 ```bash
 python -m keiba_prediction_lab.cli serve-read-only-api \
   --prediction-bundle outputs/race-1 \
-  --walk-forward-report reports/walk-forward.json
+  --walk-forward-report reports/walk-forward.json \
+  --win5-forecast outputs/win5-2026-08-30.json
 ```
 
-起動後にブラウザで`http://127.0.0.1:8765/`を開くと、読み取り専用画面を表示できます。正式候補の三連単1点100円、1着確率順位、購入額0円の影予測、ウォークフォワード指標を別領域で確認できます。`http://127.0.0.1:8765/api/v1/state`は監査済みスナップショット、`http://127.0.0.1:8765/health`は稼働状態を返します。終了は`Control-C`です。
+起動後にブラウザで`http://127.0.0.1:8765/`を開くと、読み取り専用画面を表示できます。正式候補の三連単1点100円、1着確率順位、購入額0円の影予測、ウォークフォワード指標、任意指定したWIN5影予測を別領域で確認できます。WIN5欄は`--win5-forecast`を指定した場合だけ表示され、5点の買い目ではなく対象5レース各1頭の研究用組合せです。`http://127.0.0.1:8765/api/v1/state`は監査済みスナップショット、`http://127.0.0.1:8765/health`は稼働状態を返します。終了は`Control-C`です。
 
 この段階ではファイル選択、学習、予測、保存、自動投票を提供しません。画面の再読込も監査済みスナップショットを読み直すだけであり、入力成果物を変更しません。書込み系HTTPメソッドも拒否します。
 

@@ -11,6 +11,7 @@ from keiba_prediction_lab.local_http import (
     create_read_only_server,
 )
 from tests.test_bundle_audit import _saved_bundle
+from tests.test_app_snapshot import _win5_forecast
 
 
 class LocalReadOnlyHttpTest(unittest.TestCase):
@@ -20,8 +21,10 @@ class LocalReadOnlyHttpTest(unittest.TestCase):
         self.before = {
             path.name: path.read_bytes() for path in self.prediction.iterdir()
         }
+        self.win5_forecast = _win5_forecast(Path(self.temporary.name))
         snapshot = build_read_only_app_snapshot(
-            prediction_directory=self.prediction
+            prediction_directory=self.prediction,
+            win5_forecast=self.win5_forecast,
         )
         self.server = create_read_only_server(snapshot, port=0)
         self.thread = threading.Thread(
@@ -64,6 +67,8 @@ class LocalReadOnlyHttpTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(state["is_valid"])
         self.assertEqual(state["prediction"]["actual"]["stake_yen"], 100)
+        self.assertEqual(state["win5"]["stake_yen"], 0)
+        self.assertEqual(len(state["win5"]["legs"]), 5)
         self.assertEqual(headers["cache-control"], "no-store")
         self.assertEqual(headers["x-content-type-options"], "nosniff")
         self.assertEqual(headers["content-security-policy"], "default-src 'none'")
@@ -81,6 +86,7 @@ class LocalReadOnlyHttpTest(unittest.TestCase):
         self.assertEqual(root_status, 200)
         self.assertEqual(root_headers["content-type"], "text/html; charset=utf-8")
         self.assertIn("三連単 1点100円".encode(), root)
+        self.assertIn("WIN5影予測".encode(), root)
         self.assertNotIn(self.temporary.name.encode(), root)
         self.assertEqual(css_status, 200)
         self.assertEqual(css_headers["content-type"], "text/css; charset=utf-8")
@@ -88,6 +94,7 @@ class LocalReadOnlyHttpTest(unittest.TestCase):
         self.assertEqual(js_status, 200)
         self.assertEqual(js_headers["content-type"], "text/javascript; charset=utf-8")
         self.assertIn(b'/api/v1/state', script)
+        self.assertIn(b'renderWin5', script)
 
     def test_rejects_mutating_methods_and_unknown_routes(self) -> None:
         post_status, post_headers, post = self._request("POST", "/api/v1/state")

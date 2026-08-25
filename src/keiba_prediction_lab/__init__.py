@@ -7,6 +7,8 @@ from .app_snapshot import (
     RunnerSnapshot,
     ShadowPortfolioSnapshot,
     WalkForwardAppSnapshot,
+    Win5AppSnapshot,
+    Win5LegAppSnapshot,
     build_read_only_app_snapshot,
 )
 
@@ -395,6 +397,8 @@ __all__ = [
     "WalkForwardArtifact",
     "WalkForwardArtifactAudit",
     "WalkForwardAppSnapshot",
+    "Win5AppSnapshot",
+    "Win5LegAppSnapshot",
     "WALK_FORWARD_ARTIFACT_SCHEMA_VERSION",
     "SourceStatus",
     "TARGET_COLUMNS",

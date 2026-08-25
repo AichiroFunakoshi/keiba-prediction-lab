@@ -115,6 +115,24 @@ function renderValidation(walkForward) {
   byId("metric-ece").textContent = walkForward.expected_calibration_error.toFixed(3);
 }
 
+function renderWin5(win5) {
+  const section = byId("win5");
+  section.hidden = !win5;
+  if (!win5) return;
+  const legs = byId("win5-legs");
+  legs.replaceChildren();
+  win5.legs.forEach((leg, index) => {
+    const item = node("article", "win5-leg");
+    item.append(node("span", "win5-leg-number", `第${index + 1}対象`));
+    item.append(node("strong", "", leg.selected_horse_id));
+    item.append(node("small", "", leg.race_id));
+    item.append(node("b", "", percent(leg.selected_win_probability)));
+    legs.append(item);
+  });
+  byId("win5-probability").textContent = percent(win5.joint_probability);
+  byId("win5-assumption").textContent = win5.independence_assumption;
+}
+
 async function loadState() {
   const reload = byId("reload");
   reload.disabled = true;
@@ -126,6 +144,7 @@ async function loadState() {
     if (!state.is_valid) throw new Error("監査済みデータではありません");
     byId("context-policy").textContent = state.actual_purchase_policy;
     renderPrediction(state.prediction);
+    renderWin5(state.win5);
     renderValidation(state.walk_forward);
     byId("loading").hidden = true;
     byId("app").hidden = false;
