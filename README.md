@@ -98,9 +98,11 @@ python -m keiba_prediction_lab.cli train-model local/training.csv --output local
 python -m keiba_prediction_lab.cli evaluate-walk-forward \
   local/training.csv local/windows.json \
   --report reports/walk-forward.json
+python -m keiba_prediction_lab.cli audit-walk-forward-report \
+  reports/walk-forward.json
 ```
 
-各窓は必ず「学習→校正→未来評価」の順とし、評価期間の重複を拒否します。標準出力にはMarkdown、`--report`には学習CSVと窓定義のSHA-256を含む上書き不可のJSONを保存します。窓を結果に合わせて自動選択する機能はありません。
+各窓は必ず「学習→校正→未来評価」の順とし、評価期間の重複を拒否します。標準出力にはMarkdown、`--report`には学習CSVと窓定義のSHA-256を含む上書き不可のJSONを保存します。保存後は専用監査で改変、型、窓・集計・校正・診断の不整合を確認できます。窓を結果に合わせて自動選択する機能はありません。
 
 ```bash
 python -m keiba_prediction_lab.cli audit-race-inputs \
@@ -189,6 +191,7 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 ## 設計資料
 
 - [プロジェクト申し送り](docs/HANDOFF.md)
+- [ローカルUI設計方針](docs/UI_ARCHITECTURE.md)
 - [比較用モデル](docs/BASELINES.md)
 - [特徴量と基準時刻](docs/FEATURES.md)
 - [初期確率モデル](docs/MODEL.md)

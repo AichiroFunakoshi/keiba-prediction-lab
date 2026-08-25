@@ -25,11 +25,14 @@
 PYTHONPATH=src python -m keiba_prediction_lab.cli evaluate-walk-forward \
   local/training.csv local/windows.json \
   --report reports/walk-forward.json
+
+PYTHONPATH=src python -m keiba_prediction_lab.cli \
+  audit-walk-forward-report reports/walk-forward.json
 ```
 
 窓定義は配列とし、各要素にタイムゾーン付きの `train_end`、`calibration_end`、`evaluation_end` だけを含める。未知キー、キー重複、境界逆転、評価期間重複、各期間にレースが存在しない窓は拒否する。
 
-JSON成果物には、学習CSVと窓定義ファイルのSHA-256、入力データ版、窓別・全体スコア、校正表、条件別診断を保存する。既存ファイルは上書きしない。Markdown表示とJSON成果物は同じ実行結果から生成する。
+JSON成果物には、学習CSVと窓定義ファイルのSHA-256、入力データ版、窓別・全体スコア、校正表、条件別診断を保存する。既存ファイルは上書きしない。Markdown表示とJSON成果物は同じ実行結果から生成する。専用監査はファイルを一度だけ読み、内部SHA-256、厳密なキーと型、窓の時系列、窓別と全体の件数、校正件数、診断区分の一意性を確認する。
 
 頭数は8頭以下、9〜12頭、13頭以上に分ける。予測信頼度はレース内最大勝率を使い、`0.4未満`、`0.4以上0.7未満`、`0.7以上`に分ける。各区分ではレース数と出走馬数を必ず併記し、少数区分の値を全体傾向として扱わない。
 
