@@ -171,6 +171,12 @@ from .local_adapter import (
     save_local_feature_bundle,
     save_local_training_bundle,
 )
+from .local_http import (
+    DEFAULT_READ_ONLY_API_PORT,
+    LOOPBACK_HOST,
+    create_read_only_server,
+    serve_read_only_api,
+)
 from .model import (
     CONDITIONAL_LOGIT_FEATURE_NAMES,
     ConditionalLogitModel,
@@ -308,6 +314,7 @@ __all__ = [
     "DEFAULT_BOOTSTRAP_SEED",
     "DEFAULT_CONFIDENCE_LEVEL",
     "DEFAULT_PORTFOLIO_SIZES",
+    "DEFAULT_READ_ONLY_API_PORT",
     "CsvAuditReport",
     "DataSource",
     "DiagnosticReport",
@@ -326,6 +333,7 @@ __all__ = [
     "INPUT_TEMPLATE_FILES",
     "HistoricalTrainingRunner",
     "LocalPipelineRun",
+    "LOOPBACK_HOST",
     "PACE_GENERATOR_VERSION",
     "PACE_PROFILE_COLUMNS",
     "PACE_SCENARIO_KEYS",
@@ -403,6 +411,7 @@ __all__ = [
     "confidence_bucket",
     "compare_frozen_trifecta_generators",
     "create_local_input_templates",
+    "create_read_only_server",
     "compare_bet_type_evaluation_artifacts",
     "compare_bet_type_evaluation_report_files",
     "diagnose_bet_type_evaluation_artifacts",
@@ -463,6 +472,7 @@ __all__ = [
     "save_local_training_bundle",
     "save_trained_model_artifact",
     "save_walk_forward_artifact",
+    "serve_read_only_api",
     "save_race_prediction_bundle",
     "save_race_context",
     "settle_frozen_bet_type_candidates",
