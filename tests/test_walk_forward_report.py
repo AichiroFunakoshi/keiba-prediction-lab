@@ -8,6 +8,7 @@ from pathlib import Path
 
 from keiba_prediction_lab.cli import main
 from keiba_prediction_lab.local_adapter import TRAINING_COLUMNS
+from keiba_prediction_lab.walk_forward_report import load_walk_forward_artifact
 from tests.test_local_pipeline import _write_csv
 
 
@@ -86,6 +87,95 @@ class WalkForwardReportTest(unittest.TestCase):
         self.assertEqual(len(envelope["payload"]["folds"]), 2)
         self.assertEqual(second_exit_code, 1)
         self.assertFalse(json.loads(second_stdout.getvalue())["is_valid"])
+
+    def test_cli_audits_report_without_modifying_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            windows = root / "windows.json"
+            report = root / "report.json"
+            _training(training)
+            _windows(windows)
+            with contextlib.redirect_stdout(io.StringIO()):
+                main([
+                    "evaluate-walk-forward", str(training), str(windows),
+                    "--report", str(report),
+                ])
+            before = report.read_bytes()
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "audit-walk-forward-report", str(report),
+                ])
+            after = report.read_bytes()
+            audit = json.loads(stdout.getvalue())
+            loaded = load_walk_forward_artifact(report)
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(audit["is_valid"])
+        self.assertEqual(audit["fold_count"], 2)
+        self.assertEqual(audit["evaluation_race_count"], 4)
+        self.assertEqual(len(loaded.result.folds), 2)
+        self.assertEqual(before, after)
+
+    def test_rejects_tampered_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            windows = root / "windows.json"
+            report = root / "report.json"
+            _training(training)
+            _windows(windows)
+            with contextlib.redirect_stdout(io.StringIO()):
+                main([
+                    "evaluate-walk-forward", str(training), str(windows),
+                    "--report", str(report),
+                ])
+            envelope = json.loads(report.read_text(encoding="utf-8"))
+            envelope["payload"]["aggregate_model_score"]["race_count"] = 3
+            report.write_text(json.dumps(envelope), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "integrity check failed"):
+                load_walk_forward_artifact(report)
+
+    def test_rejects_inconsistent_counts_even_with_updated_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            windows = root / "windows.json"
+            report = root / "report.json"
+            _training(training)
+            _windows(windows)
+            with contextlib.redirect_stdout(io.StringIO()):
+                main([
+                    "evaluate-walk-forward", str(training), str(windows),
+                    "--report", str(report),
+                ])
+            envelope = json.loads(report.read_text(encoding="utf-8"))
+            envelope["payload"]["aggregate_model_score"]["race_count"] = 3
+            canonical = json.dumps(
+                envelope["payload"], ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"),
+            )
+            envelope["sha256"] = hashlib.sha256(
+                canonical.encode("utf-8")
+            ).hexdigest()
+            report.write_text(json.dumps(envelope), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "counts do not match folds"):
+                load_walk_forward_artifact(report)
+
+    def test_rejects_duplicate_json_key(self) -> None:
+        duplicate = (
+            '{"schema_version":"1.0","schema_version":"1.0",'
+            '"sha256":"' + "0" * 64 + '","payload":{}}'
+        ).encode("utf-8")
+
+        with self.assertRaisesRegex(ValueError, "duplicate key"):
+            from keiba_prediction_lab.walk_forward_report import (
+                load_walk_forward_artifact_bytes,
+            )
+            load_walk_forward_artifact_bytes(duplicate)
 
     def test_cli_rejects_overlapping_windows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

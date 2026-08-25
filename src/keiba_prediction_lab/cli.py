@@ -46,6 +46,7 @@ from .model_artifact import (
 )
 from .prediction_report import build_prediction_bundle_markdown
 from .walk_forward_report import (
+    audit_walk_forward_artifact,
     evaluate_local_walk_forward,
     save_walk_forward_artifact,
 )
@@ -148,6 +149,12 @@ def _build_parser() -> argparse.ArgumentParser:
     walk_forward.add_argument("training", type=Path)
     walk_forward.add_argument("windows", type=Path)
     walk_forward.add_argument("--report", type=Path)
+
+    audit_walk_forward = subparsers.add_parser(
+        "audit-walk-forward-report",
+        help="verify a saved walk-forward JSON report without modifying it",
+    )
+    audit_walk_forward.add_argument("report", type=Path)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -412,6 +419,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             }, ensure_ascii=False, indent=2))
             return 1
         print(artifact.to_markdown(), end="")
+        return 0
+
+    if args.command == "audit-walk-forward-report":
+        try:
+            audit = audit_walk_forward_artifact(args.report)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "schema_version": audit.schema_version,
+            "sha256": audit.sha256,
+            "fold_count": audit.fold_count,
+            "evaluation_race_count": audit.evaluation_race_count,
+            "evaluation_runner_count": audit.evaluation_runner_count,
+            "training_sha256": audit.training_sha256,
+            "windows_sha256": audit.windows_sha256,
+        }, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "compare-bet-type-reports":
