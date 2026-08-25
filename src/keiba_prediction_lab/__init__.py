@@ -1,5 +1,15 @@
 """Evaluation tools for reproducible horse-racing prediction research."""
 
+from .app_snapshot import (
+    BetTypeCandidateSnapshot,
+    PredictionAppSnapshot,
+    ReadOnlyAppSnapshot,
+    RunnerSnapshot,
+    ShadowPortfolioSnapshot,
+    WalkForwardAppSnapshot,
+    build_read_only_app_snapshot,
+)
+
 from .baselines import (
     BaselineRunner,
     BaselineScore,
@@ -259,6 +269,7 @@ from .walk_forward_report import (
 
 __all__ = [
     "AuditedPredictionBundle",
+    "BetTypeCandidateSnapshot",
     "BaselineRunner",
     "BaselineScore",
     "BET_TYPE_LABELS_JA",
@@ -327,6 +338,7 @@ __all__ = [
     "PairedBootstrapInterval",
     "PaceRunnerProfile",
     "PredictionRecord",
+    "PredictionAppSnapshot",
     "PredictionPhase",
     "PredictionBundleAudit",
     "PortfolioEvaluation",
@@ -335,8 +347,10 @@ __all__ = [
     "RacePaceScenario",
     "RacePredictionBundle",
     "RacePerformance",
+    "ReadOnlyAppSnapshot",
     "RaceContext",
     "RunningStyle",
+    "RunnerSnapshot",
     "RACE_CONTEXT_SCHEMA_VERSION",
     "Surface",
     "TargetRunner",
@@ -356,6 +370,7 @@ __all__ = [
     "WalkForwardWindow",
     "WalkForwardArtifact",
     "WalkForwardArtifactAudit",
+    "WalkForwardAppSnapshot",
     "WALK_FORWARD_ARTIFACT_SCHEMA_VERSION",
     "SourceStatus",
     "TARGET_COLUMNS",
@@ -365,12 +380,14 @@ __all__ = [
     "SegmentDiagnostic",
     "SHADOW_SNAPSHOT_SCHEMA_VERSION",
     "ShadowPortfolio",
+    "ShadowPortfolioSnapshot",
     "ShadowPortfolioReport",
     "assert_pre_race_features",
     "audit_standard_csv",
     "audit_prediction_bundle",
     "audit_walk_forward_artifact",
     "build_prediction_bundle_markdown",
+    "build_read_only_app_snapshot",
     "binary_brier_score",
     "build_local_feature_bundle",
     "build_local_race_prediction",

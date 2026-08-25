@@ -151,6 +151,14 @@ python -m keiba_prediction_lab.cli report-prediction-bundle outputs/race-1 --out
 
 レポート生成時にも監査を行います。監査した同一のバイト列からレポートを作るため、監査後の読み直しによる差し替えを避けています。`--output`を省略するとMarkdownを標準出力へ表示します。レポートも既存ファイルを上書きしません。
 
+将来のローカルUIが使用する読み取り専用データは、次のコマンドで確認できます。指定した成果物を監査し、実購入候補と影予測、ウォークフォワード指標を構造化JSONで返します。ファイルの探索・保存・変更は行いません。
+
+```bash
+python -m keiba_prediction_lab.cli inspect-app-state \
+  --prediction-bundle outputs/race-1 \
+  --walk-forward-report reports/walk-forward.json
+```
+
 ### 6. レース後に評価する
 
 結果・払戻・レース条件は、発走前予測を変更せず別ファイルとして追加します。
