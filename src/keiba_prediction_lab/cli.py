@@ -12,6 +12,7 @@ from .bet_type_bootstrap import (
     DEFAULT_BOOTSTRAP_SEED,
     bootstrap_bet_type_evaluation_report_files,
 )
+from .app_snapshot import build_read_only_app_snapshot
 from .bet_type_diagnostics import (
     diagnose_bet_type_evaluation_report_files,
 )
@@ -155,6 +156,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="verify a saved walk-forward JSON report without modifying it",
     )
     audit_walk_forward.add_argument("report", type=Path)
+
+    inspect_app = subparsers.add_parser(
+        "inspect-app-state",
+        help="emit read-only UI data from explicitly selected audited artifacts",
+    )
+    inspect_app.add_argument("--prediction-bundle", type=Path)
+    inspect_app.add_argument("--walk-forward-report", type=Path)
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -439,6 +447,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             "evaluation_runner_count": audit.evaluation_runner_count,
             "training_sha256": audit.training_sha256,
             "windows_sha256": audit.windows_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "inspect-app-state":
+        try:
+            snapshot = build_read_only_app_snapshot(
+                prediction_directory=args.prediction_bundle,
+                walk_forward_report=args.walk_forward_report,
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            **snapshot.to_dict(),
         }, ensure_ascii=False, indent=2))
         return 0
 
