@@ -104,6 +104,13 @@ class RacePredictionBundle:
             for key in expected_win
         ):
             raise ValueError("bet type win probabilities must equal the source model")
+        if (
+            bet_type_forecast.candidate_for(BetType.WIN).selection[0]
+            != actual.trifecta_tickets[0].selection[0]
+        ):
+            raise ValueError(
+                "actual trifecta winner anchor must equal the top win candidate"
+            )
         if bet_type_forecast.place_payout_slots == 3 and (
             forecast_place.keys() != expected_place.keys()
             or any(

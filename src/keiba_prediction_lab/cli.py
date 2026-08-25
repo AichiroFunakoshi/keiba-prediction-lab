@@ -52,6 +52,7 @@ from .walk_forward_report import (
     evaluate_local_walk_forward,
     save_walk_forward_artifact,
 )
+from .win5 import build_win5_forecast, load_win5_forecast, save_win5_forecast
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -108,6 +109,20 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     predict_race.add_argument("--place-payout-slots", type=int)
     predict_race.add_argument("--output", type=Path, required=True)
+
+    predict_win5 = subparsers.add_parser(
+        "predict-win5",
+        help="freeze a zero-stake WIN5 forecast from five audited race bundles",
+    )
+    predict_win5.add_argument("race_directories", type=Path, nargs=5)
+    predict_win5.add_argument("--frozen-at", required=True)
+    predict_win5.add_argument("--output", type=Path, required=True)
+
+    audit_win5 = subparsers.add_parser(
+        "audit-win5-forecast",
+        help="verify a saved zero-stake WIN5 forecast",
+    )
+    audit_win5.add_argument("forecast", type=Path)
 
     templates = subparsers.add_parser(
         "init-input-templates",
@@ -333,6 +348,40 @@ def main(argv: Sequence[str] | None = None) -> int:
             "actual_ticket": list(actual.trifecta_tickets[0].selection),
             "stake_yen": actual.trifecta_tickets[0].stake_yen,
             "shadow_stake_yen": 0,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "predict-win5":
+        try:
+            forecast = build_win5_forecast(
+                args.race_directories,
+                frozen_at=datetime.fromisoformat(args.frozen_at),
+            )
+            save_win5_forecast(forecast, args.output)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            **forecast.to_dict(),
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "audit-win5-forecast":
+        try:
+            forecast = load_win5_forecast(args.forecast)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            **forecast.to_dict(),
         }, ensure_ascii=False, indent=2))
         return 0
 

@@ -183,6 +183,23 @@ python -m keiba_prediction_lab.cli evaluate-bet-types \
 
 評価は馬券種ごとに分離し、固定100円で集計します。最大払戻を除いた回収率や上位的中への依存度も表示するため、少数の高配当だけで性能が高く見える状態を確認できます。
 
+### WIN5対象日の影予測
+
+対象5レースをそれぞれ正式パイプラインで事前固定した後、5つの予測バンドルを発走順に束ねます。WIN5は現在の実購入方針へ加えず、購入額0円の研究用予測として保存します。
+
+```bash
+python -m keiba_prediction_lab.cli predict-win5 \
+  outputs/win5-race-1 outputs/win5-race-2 outputs/win5-race-3 \
+  outputs/win5-race-4 outputs/win5-race-5 \
+  --frozen-at 2026-08-30T13:30:00+09:00 \
+  --output outputs/win5-2026-08-30.json
+
+python -m keiba_prediction_lab.cli audit-win5-forecast \
+  outputs/win5-2026-08-30.json
+```
+
+各レースの1着確率1位を1頭ずつ選び、初期モデルでは5レース間を独立と仮定して同時成立確率を計算します。対象レースの自動判定は行わないため、日程を確認した利用者が正しい5レースを明示します。詳しくは[WIN5影予測](docs/WIN5.md)を参照してください。
+
 ## 比較・診断コマンド
 
 ```bash
