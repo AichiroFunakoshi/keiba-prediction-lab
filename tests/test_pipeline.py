@@ -98,6 +98,12 @@ class RacePredictionPipelineTest(unittest.TestCase):
             result.actual_prediction.trifecta_tickets[0].selection,
             result.baseline_shadow.forecast.primary_ticket.selection,
         )
+        self.assertEqual(
+            result.actual_prediction.trifecta_tickets[0].selection[0],
+            result.bet_type_shadow.forecast.candidate_for(
+                BetType.WIN
+            ).selection[0],
+        )
         self.assertEqual(result.pace_shadow.generator_version, "pace-scenario-v1")
         self.assertEqual(
             tuple(row.bet_type for row in result.bet_type_shadow.forecast.candidates),
