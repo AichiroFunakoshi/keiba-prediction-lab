@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>競馬予測ラボ</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">競馬予測ラボ</div>
+    <div class="audit-badge">監査済み・読み取り専用</div>
+    <div class="race-title" id="race-title">予測データ</div>
+    <time id="scheduled-at">—</time>
+    <button id="reload" type="button">再読込</button>
+  </header>
+
+  <div id="loading" class="state-message" role="status">監査済みデータを読み込んでいます</div>
+  <div id="error" class="state-message error" role="alert" hidden></div>
+
+  <main id="app" class="app-shell" hidden>
+    <aside class="context-panel" aria-labelledby="context-title">
+      <h2 id="context-title">現在の研究条件</h2>
+      <dl>
+        <div><dt>発走予定</dt><dd id="context-scheduled">—</dd></div>
+        <div><dt>予測固定</dt><dd id="context-frozen">—</dd></div>
+        <div><dt>モデル</dt><dd id="context-model">—</dd></div>
+        <div><dt>入力データ版</dt><dd id="context-input">—</dd></div>
+        <div><dt>研究方針</dt><dd id="context-policy">—</dd></div>
+      </dl>
+      <p class="read-only-note">本画面は研究用の読み取り専用表示です。投票・購入機能はありません。</p>
+    </aside>
+
+    <div class="content">
+      <section id="prediction-view">
+        <div class="official-ticket" aria-labelledby="official-title">
+          <h1 id="official-title">正式候補 <span>三連単 1点100円</span></h1>
+          <div id="official-selection" class="ticket-numbers"></div>
+        </div>
+
+        <section class="winner-section" aria-labelledby="winner-title">
+          <h2 id="winner-title">勝者シナリオ（1着フォーカス）</h2>
+          <div class="winner-grid">
+            <article class="winner-focus">
+              <div class="horse-number" id="winner-number">—</div>
+              <p class="horse-label">予測1位の馬ID</p>
+              <strong id="winner-id">—</strong>
+              <hr>
+              <span>1着確率</span>
+              <b id="winner-probability">—</b>
+              <p class="neutral-note">最上位候補であり、的中を保証する表示ではありません。</p>
+            </article>
+            <div class="ranking-wrap">
+              <table>
+                <thead><tr><th>順位</th><th>馬ID</th><th>1着確率</th><th>3着内確率</th></tr></thead>
+                <tbody id="ranking-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="shadow-section" aria-labelledby="shadow-title">
+          <div class="section-heading">
+            <h2 id="shadow-title">影予測（購入しない・すべて0円）</h2>
+            <span>研究用・参考値</span>
+          </div>
+          <div id="shadow-groups" class="shadow-groups"></div>
+          <p class="shadow-note">影予測は反実仮想の評価材料です。実購入候補には含まれません。</p>
+        </section>
+      </section>
+
+      <section id="empty-prediction" class="empty-panel" hidden>予測バンドルは選択されていません。</section>
+
+      <section id="validation" class="validation" aria-labelledby="validation-title">
+        <h2 id="validation-title">モデル検証</h2>
+        <div class="metric"><span>評価レース</span><strong id="metric-races">—</strong></div>
+        <div class="metric"><span>1着的中率</span><strong id="metric-model">—</strong></div>
+        <div class="metric"><span>一様予測</span><strong id="metric-uniform">—</strong></div>
+        <div class="metric"><span>ECE</span><strong id="metric-ece">—</strong></div>
+        <p>成績は将来の的中を保証しません</p>
+      </section>
+      <section id="empty-validation" class="empty-panel" hidden>ウォークフォワード成果物は選択されていません。</section>
+    </div>
+  </main>
+</body>
+</html>

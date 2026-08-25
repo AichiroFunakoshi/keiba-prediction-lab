@@ -1,0 +1,119 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  color: #10264a;
+  background: #f7f9fc;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; background: #f7f9fc; }
+button, table { font: inherit; }
+
+.topbar {
+  height: 68px;
+  padding: 0 26px;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto auto;
+  align-items: center;
+  gap: 34px;
+  color: #fff;
+  background: #031f4b;
+}
+.brand { font-size: 25px; font-weight: 750; letter-spacing: .04em; white-space: nowrap; }
+.audit-badge { padding: 8px 14px; border: 1px solid #2b9d6c; border-radius: 5px; color: #68dda4; font-weight: 700; white-space: nowrap; }
+.race-title { justify-self: center; font-size: 24px; font-weight: 700; }
+.topbar time { font-size: 18px; white-space: nowrap; }
+.topbar button { border: 0; padding: 10px 4px; color: #fff; background: transparent; cursor: pointer; font-size: 17px; }
+.topbar button:hover, .topbar button:focus-visible { color: #79a8ff; text-decoration: underline; }
+.topbar button:disabled { opacity: .55; cursor: wait; }
+
+.state-message { margin: 80px auto; max-width: 620px; padding: 24px; text-align: center; color: #53647f; }
+.state-message.error { border: 1px solid #e45d5d; border-radius: 7px; color: #a82424; background: #fff7f7; }
+.app-shell { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: calc(100vh - 68px); }
+
+.context-panel { padding: 28px 24px; border-right: 1px solid #d8e0ec; background: #fff; }
+.context-panel h2 { margin: 0 0 18px; padding-bottom: 13px; border-bottom: 1px solid #c9d3e1; font-size: 17px; }
+.context-panel dl { margin: 0; }
+.context-panel dl div { margin: 0 0 20px; }
+.context-panel dt { margin-bottom: 5px; font-size: 13px; font-weight: 750; }
+.context-panel dd { margin: 0; color: #385172; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.read-only-note { margin: 30px 0 0; padding: 14px; border-radius: 7px; color: #5a6e8d; background: #f2f5f9; font-size: 12px; line-height: 1.6; }
+
+.content { min-width: 0; padding: 14px 18px 12px; }
+.official-ticket { min-height: 132px; padding: 18px 22px; border: 1.5px solid #ff5757; border-radius: 8px; background: #fffafa; }
+.official-ticket h1 { margin: 0; color: #f04444; font-size: 20px; }
+.official-ticket h1 span { margin-left: 8px; font-size: 17px; }
+.ticket-numbers { display: flex; justify-content: center; align-items: center; gap: 52px; margin-top: 8px; }
+.ticket-number { min-width: 88px; padding: 10px 20px; border: 1.5px solid #ff5757; border-radius: 7px; color: #f04444; background: #fff; text-align: center; font-size: 44px; font-weight: 800; }
+.ticket-arrow { color: #25344a; font-size: 36px; font-weight: 400; }
+
+.winner-section { margin-top: 20px; }
+.winner-section > h2, .shadow-section h2, .validation h2 { margin: 0; font-size: 18px; }
+.winner-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; margin-top: 12px; }
+.winner-focus { padding: 18px 22px; border: 1px solid #bcc9da; border-radius: 7px; background: #fff; }
+.horse-number { float: left; min-width: 70px; margin-right: 18px; padding: 8px 14px; border-radius: 5px; color: #fff; background: #062658; text-align: center; font-size: 38px; font-weight: 800; }
+.horse-label { margin: 2px 0 2px; color: #687b97; font-size: 12px; }
+.winner-focus > strong { display: block; padding-top: 7px; font-size: 24px; overflow-wrap: anywhere; }
+.winner-focus hr { clear: both; margin: 25px 0 17px; border: 0; border-top: 1px solid #d5dce7; }
+.winner-focus > span { display: block; font-size: 17px; font-weight: 700; }
+.winner-focus > b { display: block; margin-top: 4px; color: #175ac2; font-size: 48px; }
+.neutral-note { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid #d5dce7; color: #60718b; font-size: 12px; line-height: 1.55; }
+
+.ranking-wrap { min-width: 0; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: #fff; }
+th, td { padding: 9px 14px; border-bottom: 1px solid #d9e0ea; text-align: left; }
+th { color: #52637c; font-size: 12px; }
+td { font-size: 14px; }
+td.probability { color: #175ac2; font-weight: 750; font-variant-numeric: tabular-nums; }
+.rank-pill { display: inline-block; min-width: 30px; padding: 3px 8px; border: 1px solid #bcc6d3; border-radius: 4px; text-align: center; }
+
+.shadow-section { margin-top: 16px; padding: 14px 16px 10px; border: 1px solid #b9c8dc; border-radius: 7px; background: #f4f7fb; }
+.section-heading { display: flex; align-items: center; gap: 14px; }
+.section-heading span { padding: 4px 9px; border-radius: 4px; color: #596b83; background: #e5ebf3; font-size: 12px; }
+.shadow-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin-top: 12px; }
+.shadow-group h3 { margin: 0; padding-bottom: 8px; border-bottom: 1px solid #c8d2df; font-size: 14px; }
+.shadow-matrix { display: grid; grid-template-columns: 68px repeat(var(--strategy-count), minmax(120px, 1fr)); gap: 8px 12px; align-items: center; margin-top: 8px; font-size: 12px; }
+.matrix-label { color: #455b7a; white-space: nowrap; }
+.matrix-heading { color: #5d6f87; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.matrix-cell { display: grid; grid-template-columns: minmax(55px, 1fr) 44px; gap: 6px; align-items: center; }
+.bar-track { height: 12px; background: #dfe5ed; }
+.bar-fill { height: 100%; background: #6385bd; }
+.shadow-value { text-align: right; font-variant-numeric: tabular-nums; }
+.shadow-note { margin: 10px 0 0; color: #63748d; font-size: 12px; }
+
+.validation { display: grid; grid-template-columns: 260px repeat(4, minmax(100px, 1fr)) 1.4fr; align-items: center; margin-top: 14px; border: 1px solid #b9c8dc; border-radius: 7px; background: #f7f9fc; }
+.validation h2, .validation .metric, .validation > p { padding: 13px 18px; }
+.validation .metric { border-left: 1px solid #c8d2df; text-align: center; }
+.metric span { display: block; font-size: 12px; }
+.metric strong { display: block; margin-top: 3px; font-size: 22px; font-variant-numeric: tabular-nums; }
+.validation > p { margin: 0; border-left: 1px solid #c8d2df; color: #41536d; text-align: center; font-size: 12px; }
+.empty-panel { margin-top: 14px; padding: 22px; border: 1px dashed #aebbd0; color: #65758e; background: #fff; text-align: center; }
+
+@media (max-width: 1050px) {
+  .topbar { grid-template-columns: auto 1fr auto; gap: 18px; }
+  .audit-badge { display: none; }
+  .race-title { justify-self: start; }
+  .topbar time { display: none; }
+  .app-shell { grid-template-columns: 1fr; }
+  .context-panel { border-right: 0; border-bottom: 1px solid #d8e0ec; }
+  .context-panel dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .winner-grid { grid-template-columns: 280px minmax(0, 1fr); }
+  .validation { grid-template-columns: repeat(4, 1fr); }
+  .validation h2, .validation > p { grid-column: 1 / -1; }
+}
+
+@media (max-width: 720px) {
+  .topbar { height: auto; min-height: 62px; padding: 12px 16px; }
+  .brand { font-size: 20px; }
+  .race-title { display: none; }
+  .app-shell { min-height: calc(100vh - 62px); }
+  .content, .context-panel { padding: 16px; }
+  .context-panel dl { grid-template-columns: 1fr 1fr; }
+  .ticket-numbers { gap: 10px; }
+  .ticket-number { min-width: 62px; padding: 8px 12px; font-size: 32px; }
+  .ticket-arrow { font-size: 24px; }
+  .winner-grid, .shadow-groups { grid-template-columns: 1fr; }
+  .shadow-matrix { overflow-x: auto; }
+  .validation { grid-template-columns: 1fr 1fr; }
+}
