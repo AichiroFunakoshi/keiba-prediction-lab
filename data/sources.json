@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "last_reviewed": "2026-08-18",
+  "last_reviewed": "2026-08-29",
   "sources": [
     {
       "source_id": "synthetic-fixtures",
@@ -12,6 +12,17 @@
       "redistribution": "allowed",
       "status": "approved",
       "reason": "Safe for tests and examples, but not suitable for model training."
+    },
+    {
+      "source_id": "jra-van-data-lab",
+      "name": "JRA-VAN Data Lab.",
+      "homepage": "https://jra-van.jp/dlb/",
+      "scope": "Licensed JRA historical, weekly, and real-time JV-Data",
+      "declared_license": "Paid subscriber service terms and official JV-Link SDK",
+      "provenance": "JRA official data delivered by JRA Systems Service through the documented JV-Link interface.",
+      "redistribution": "prohibited",
+      "status": "approved",
+      "reason": "Approved only for a subscriber's local analysis through JV-Link. Monthly subscription and a supported Windows environment are required; raw or derived row-level data must not be committed or redistributed."
     },
     {
       "source_id": "kaggle-takamotoki-jra",

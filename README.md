@@ -341,6 +341,7 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 - [予想固定と評価](docs/FROZEN_PREDICTIONS.md)
 - [三連単の条件付き確率と影予測](docs/TRIFECTA_PORTFOLIOS.md)
 - [脚質・想定ペースモデル](docs/PACE_MODEL.md)
+- [JRA-VAN Data Lab. ローカル取得](docs/JRA_VAN_WORKFLOW.md)
 - [三連単生成モデルの対応比較](docs/MODEL_COMPARISON.md)
 - [1レース予測パイプライン](docs/PIPELINE.md)
 - [全6馬券種の事前予測](docs/BET_TYPE_SHADOW_FORECASTS.md)

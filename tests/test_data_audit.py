@@ -20,19 +20,20 @@ class DataSourceRegistryTest(unittest.TestCase):
     def test_registry_is_valid_and_keeps_real_sources_unapproved(self) -> None:
         sources = load_source_registry(ROOT / "data" / "sources.json")
 
-        self.assertEqual(len(sources), 4)
-        self.assertEqual(len({source.source_id for source in sources}), 4)
-        real_sources = [source for source in sources if source.scope != "synthetic"]
-        self.assertTrue(real_sources)
-        self.assertTrue(
-            all(source.status is SourceStatus.REVIEW_REQUIRED for source in real_sources)
-        )
-        self.assertTrue(
-            all(
-                source.redistribution is RedistributionStatus.UNCLEAR
-                for source in real_sources
-            )
-        )
+        self.assertEqual(len(sources), 5)
+        self.assertEqual(len({source.source_id for source in sources}), 5)
+        jra_van = next(source for source in sources if source.source_id == "jra-van-data-lab")
+        self.assertIs(jra_van.status, SourceStatus.APPROVED)
+        self.assertIs(jra_van.redistribution, RedistributionStatus.PROHIBITED)
+        unapproved_real = [
+            source for source in sources
+            if source.scope != "synthetic" and source.source_id != "jra-van-data-lab"
+        ]
+        self.assertTrue(unapproved_real)
+        self.assertTrue(all(
+            source.status is SourceStatus.REVIEW_REQUIRED
+            for source in unapproved_real
+        ))
 
     def test_feature_gate_rejects_result_columns(self) -> None:
         with self.assertRaisesRegex(ValueError, "non-pre-race"):

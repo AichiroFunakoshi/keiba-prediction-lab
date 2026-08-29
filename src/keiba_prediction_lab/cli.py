@@ -30,6 +30,10 @@ from .bundle_audit import audit_prediction_bundle
 from .data_audit import audit_standard_csv, load_source_registry
 from .frozen import PredictionPhase
 from .input_templates import create_local_input_templates
+from .jra_van_fetch import (
+    fetch_jra_van_on_windows,
+    fetch_jra_van_realtime_on_windows,
+)
 from .local_adapter import (
     build_local_feature_bundle,
     build_time_safe_training_bundle,
@@ -47,6 +51,10 @@ from .model_artifact import (
     train_local_model_artifact,
 )
 from .prediction_report import build_prediction_bundle_markdown
+from .pace_estimation import (
+    build_automatic_pace_inputs,
+    save_automatic_pace_inputs,
+)
 from .race_day_pipeline import audit_local_race_day, build_and_save_local_race_day
 from .snapshot_adapter import (
     convert_history_snapshot,
@@ -118,6 +126,33 @@ def _build_parser() -> argparse.ArgumentParser:
     target_snapshot.add_argument("--race-date", required=True)
     target_snapshot.add_argument("--observed-at", required=True)
     target_snapshot.add_argument("--output", type=Path, required=True)
+
+    generate_pace = subparsers.add_parser(
+        "generate-pace-inputs",
+        help="derive time-safe running styles and expected pace from past results",
+    )
+    generate_pace.add_argument("pace_history", type=Path)
+    generate_pace.add_argument("targets", type=Path)
+    generate_pace.add_argument("--output", type=Path, required=True)
+
+    fetch_jra_van = subparsers.add_parser(
+        "fetch-jra-van",
+        help="fetch licensed JV-Data through the official Windows-only JV-Link",
+    )
+    fetch_jra_van.add_argument("--output", type=Path, required=True)
+    fetch_jra_van.add_argument("--dataspec", default="RACE")
+    fetch_jra_van.add_argument("--fromtime", default="00000000000000")
+    fetch_jra_van.add_argument("--option", type=int, default=2)
+    fetch_jra_van.add_argument("--sid", default="UNKNOWN")
+
+    fetch_realtime = subparsers.add_parser(
+        "fetch-jra-van-realtime",
+        help="fetch licensed real-time JV-Data through Windows JV-Link",
+    )
+    fetch_realtime.add_argument("--output", type=Path, required=True)
+    fetch_realtime.add_argument("--dataspec", required=True)
+    fetch_realtime.add_argument("--key", required=True)
+    fetch_realtime.add_argument("--sid", default="UNKNOWN")
 
     train_model = subparsers.add_parser(
         "train-model",
@@ -444,6 +479,78 @@ def main(argv: Sequence[str] | None = None) -> int:
             "runner_count": result.runner_count,
             "source_sha256": result.source_sha256,
             "network_access_performed": False,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "generate-pace-inputs":
+        try:
+            inputs = build_automatic_pace_inputs(
+                args.pace_history, args.targets
+            )
+            profiles, scenario, manifest = save_automatic_pace_inputs(
+                inputs, args.output
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "output": str(args.output),
+            "pace_profiles": str(profiles),
+            "pace_scenario": str(scenario),
+            "manifest": str(manifest),
+            "race_id": inputs.scenario.race_id,
+            "expected_pace": inputs.scenario.expected_pace.value,
+            "confidence": inputs.scenario.confidence,
+            "runner_count": len(inputs.profiles),
+            "runners_with_history": inputs.runners_with_history,
+            "history_rows_used": inputs.history_rows_used,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "fetch-jra-van":
+        try:
+            result = fetch_jra_van_on_windows(
+                args.output,
+                dataspec=args.dataspec,
+                fromtime=args.fromtime,
+                option=args.option,
+                sid=args.sid,
+            )
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "output": str(result.output_directory),
+            "records": str(result.records_path),
+            "manifest": str(result.manifest_path),
+            "record_count": result.record_count,
+            "records_sha256": result.records_sha256,
+            "acquired_at": result.acquired_at.isoformat(),
+            "source_id": "jra-van-data-lab",
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "fetch-jra-van-realtime":
+        try:
+            result = fetch_jra_van_realtime_on_windows(
+                args.output, dataspec=args.dataspec, key=args.key, sid=args.sid
+            )
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True, "output": str(result.output_directory),
+            "records": str(result.records_path), "manifest": str(result.manifest_path),
+            "record_count": result.record_count, "records_sha256": result.records_sha256,
+            "acquired_at": result.acquired_at.isoformat(), "source_id": "jra-van-data-lab",
         }, ensure_ascii=False, indent=2))
         return 0
 

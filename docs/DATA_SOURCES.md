@@ -1,6 +1,6 @@
-# 無料データ候補の監査
+# 実データ候補の監査
 
-最終確認日：2026年8月18日
+最終確認日：2026年8月29日
 
 ## 判定基準
 
@@ -16,6 +16,20 @@
 コードと利用者のローカルデータを分離する規則は [`DATA_USAGE_POLICY.md`](DATA_USAGE_POLICY.md) に定める。
 
 ## 現在の結論
+
+### JRA-VAN Data Lab.
+
+状態：`approved`（契約者本人のローカル利用に限定）
+
+- 提供元：JRAシステムサービス株式会社
+- 取得方式：公式SDKのActiveX COMモジュール`JV-Link`
+- 料金：月額2,090円（税込、2026年8月29日確認）
+- 対応環境：Windows。公式FAQはmacOS版のサポート終了とmacOS非動作を明記
+- データ：今週情報、過去走、結果、コーナー通過順、速報情報などをJV-Data仕様で提供
+- 自動取得：公式開発者FAQは、JV-Link経由の定期取得やオッズ巡回取得を想定し、更新間隔を超える要求を避けるよう案内
+- 保存・公開：利用キーと取得データは利用者のローカル領域だけに保存し、GitHubへ置かない。本リポジトリでは再配布禁止として扱う
+
+結論：中央競馬の正式な自動取得元として採用する。ただしJV-Linkを実行するWindows環境と有効なData Lab.利用キーが必要である。M1 Mac単体からJV-Linkを直接呼び出すことはできないため、Windows VMまたは別Windows PCで取得し、厳格な受渡し契約を通じてMac側へ渡す。
 
 ### 合成テストデータ
 
@@ -60,6 +74,10 @@
 結論：取込方式の検証候補として有望だが、JRAモデルの学習データとしては扱わない。
 
 ## 参照先
+
+- [JRA-VAN Data Lab.](https://jra-van.jp/dlb/)
+- [JRA-VAN SDK提供コーナー](https://jra-van.jp/dlb/sdv/sdk.html)
+- [JRA-VAN開発者FAQ](https://jra-van.jp/dlb/sdv/faq.html)
 
 - [Kaggle dataset](https://www.kaggle.com/datasets/takamotoki/jra-horse-racing-dataset)
 - [Hugging Face dataset](https://huggingface.co/datasets/KBlueLeaf/jp-racing-horse)
