@@ -3,7 +3,7 @@
 import argparse
 import json
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from .bet_type_bootstrap import (
@@ -47,6 +47,11 @@ from .model_artifact import (
     train_local_model_artifact,
 )
 from .prediction_report import build_prediction_bundle_markdown
+from .snapshot_adapter import (
+    convert_history_snapshot,
+    convert_target_snapshot,
+)
+from .ui_demo import create_ui_demo, load_ui_demo
 from .walk_forward_report import (
     audit_walk_forward_artifact,
     evaluate_local_walk_forward,
@@ -67,6 +72,12 @@ def _build_parser() -> argparse.ArgumentParser:
     audit = subparsers.add_parser("audit-csv", help="audit a standardized CSV")
     audit.add_argument("path", type=Path)
 
+    training_audit = subparsers.add_parser(
+        "audit-training-csv",
+        help="validate a time-safe local training CSV without saving an artifact",
+    )
+    training_audit.add_argument("training", type=Path)
+
     prepare = subparsers.add_parser(
         "prepare-features",
         help="build leakage-checked features from separate local CSV files",
@@ -81,6 +92,31 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     training.add_argument("training", type=Path)
     training.add_argument("--output", type=Path, required=True)
+
+    history_snapshot = subparsers.add_parser(
+        "convert-local-history-snapshot",
+        help="convert an already acquired local race-history JSON snapshot",
+    )
+    history_snapshot.add_argument("snapshot", type=Path)
+    history_snapshot.add_argument("--source-id", required=True)
+    history_snapshot.add_argument("--acquired-at", required=True)
+    history_snapshot.add_argument(
+        "--observation-offset-minutes", type=int, default=5
+    )
+    history_snapshot.add_argument("--result-delay-minutes", type=int, default=20)
+    history_snapshot.add_argument("--output", type=Path, required=True)
+
+    target_snapshot = subparsers.add_parser(
+        "convert-local-target-snapshot",
+        help="convert an already acquired result-free race-card JSON snapshot",
+    )
+    target_snapshot.add_argument("snapshot", type=Path)
+    target_snapshot.add_argument("track_conditions", type=Path)
+    target_snapshot.add_argument("--source-id", required=True)
+    target_snapshot.add_argument("--acquired-at", required=True)
+    target_snapshot.add_argument("--race-date", required=True)
+    target_snapshot.add_argument("--observed-at", required=True)
+    target_snapshot.add_argument("--output", type=Path, required=True)
 
     train_model = subparsers.add_parser(
         "train-model",
@@ -191,6 +227,29 @@ def _build_parser() -> argparse.ArgumentParser:
     serve_api.add_argument("--win5-forecast", type=Path)
     serve_api.add_argument("--race-day-manifest", type=Path)
     serve_api.add_argument("--port", type=int, default=DEFAULT_READ_ONLY_API_PORT)
+    serve_api.add_argument(
+        "--open-browser", action="store_true",
+        help="open the local UI in the default browser after startup",
+    )
+
+    init_ui_demo = subparsers.add_parser(
+        "init-ui-demo",
+        help="create audited synthetic artifacts for viewing the local UI",
+    )
+    init_ui_demo.add_argument("--output", type=Path, required=True)
+
+    serve_ui_demo = subparsers.add_parser(
+        "serve-ui-demo",
+        help="audit and open a previously created synthetic UI demo",
+    )
+    serve_ui_demo.add_argument("directory", type=Path)
+    serve_ui_demo.add_argument(
+        "--port", type=int, default=DEFAULT_READ_ONLY_API_PORT
+    )
+    serve_ui_demo.add_argument(
+        "--no-open-browser", action="store_true",
+        help="serve the demo without opening the default browser",
+    )
 
     evaluate = subparsers.add_parser(
         "evaluate-bet-types",
@@ -284,6 +343,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(artifact.to_markdown(), end="")
         return 0
 
+    if args.command == "audit-training-csv":
+        bundle = build_time_safe_training_bundle(args.training)
+        print(json.dumps({
+            "path": str(args.training),
+            "training_sha256": bundle.training_sha256,
+            "input_data_version": bundle.input_data_version,
+            "training_row_count": len(bundle.rows),
+            "training_race_count": len({
+                row.features.race_id for row in bundle.rows
+            }),
+            "is_valid": True,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
     if args.command == "prepare-features":
         bundle = build_local_feature_bundle(args.history, args.targets)
         save_local_feature_bundle(bundle, args.output)
@@ -293,6 +366,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             "input_data_version": bundle.input_data_version,
             "history_sha256": bundle.history_sha256,
             "targets_sha256": bundle.targets_sha256,
+            "feature_history_coverage": {
+                "horse": bundle.horse_history_coverage_count,
+                "jockey": bundle.jockey_history_coverage_count,
+                "trainer": bundle.trainer_history_coverage_count,
+                "runner_count": len(bundle.features),
+            },
         }, ensure_ascii=False, indent=2))
         return 0
 
@@ -304,6 +383,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             "training_row_count": len(bundle.rows),
             "input_data_version": bundle.input_data_version,
             "training_sha256": bundle.training_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "convert-local-history-snapshot":
+        result = convert_history_snapshot(
+            args.snapshot,
+            args.output,
+            source_id=args.source_id,
+            acquired_at=datetime.fromisoformat(args.acquired_at),
+            observation_offset_minutes=args.observation_offset_minutes,
+            result_delay_minutes=args.result_delay_minutes,
+        )
+        print(json.dumps({
+            "output": str(result.output_directory),
+            "manifest": str(result.manifest_path),
+            "race_count": result.race_count,
+            "runner_count": result.runner_count,
+            "source_sha256": result.source_sha256,
+            "network_access_performed": False,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "convert-local-target-snapshot":
+        result = convert_target_snapshot(
+            args.snapshot,
+            args.track_conditions,
+            args.output,
+            source_id=args.source_id,
+            acquired_at=datetime.fromisoformat(args.acquired_at),
+            race_date=date.fromisoformat(args.race_date),
+            observed_at=datetime.fromisoformat(args.observed_at),
+        )
+        print(json.dumps({
+            "output": str(result.output_directory),
+            "manifest": str(result.manifest_path),
+            "race_count": result.race_count,
+            "runner_count": result.runner_count,
+            "source_sha256": result.source_sha256,
+            "network_access_performed": False,
         }, ensure_ascii=False, indent=2))
         return 0
 
@@ -540,6 +658,43 @@ def main(argv: Sequence[str] | None = None) -> int:
                 win5_forecast=args.win5_forecast,
                 race_day_manifest=args.race_day_manifest,
                 port=args.port,
+                open_browser=args.open_browser,
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        return 0
+
+    if args.command == "init-ui-demo":
+        try:
+            demo = create_ui_demo(args.output)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "synthetic_demo": True,
+            "output": str(demo.root),
+            "race_count": demo.race_count,
+            "race_day_manifest": str(demo.race_day_manifest),
+            "walk_forward_report": str(demo.walk_forward_report),
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "serve-ui-demo":
+        try:
+            demo = load_ui_demo(args.directory)
+            serve_read_only_api(
+                race_day_manifest=demo.race_day_manifest,
+                walk_forward_report=demo.walk_forward_report,
+                port=args.port,
+                open_browser=not args.no_open_browser,
             )
         except (OSError, ValueError, UnicodeError) as error:
             print(json.dumps({

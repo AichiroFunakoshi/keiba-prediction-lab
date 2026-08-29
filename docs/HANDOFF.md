@@ -26,7 +26,8 @@
 - Python: 3.11以上
 - 外部Python依存: なし
 - CI: Python 3.11、3.12、3.13
-- この申し送り直前の完了PR: `#36 Add audited read-only app snapshots`
+- この申し送りで確認した`main`: `ccd17116b01db4227e5d0528fcb25ad556bcecda`
+- この申し送り直前の完了PR: `#41 Add race-day prediction dashboard`
 
 現在の段階は[開発ロードマップ](ROADMAP.md)を正とする。概要は次のとおり。
 
@@ -63,7 +64,7 @@ git switch main
 git pull --ff-only origin main
 python3 -m venv .venv
 source .venv/bin/activate
-python -m unittest discover -s tests
+PYTHONPATH=src python -m unittest discover -s tests
 ```
 
 期待値は、全テスト成功である。テスト数は開発により増えるため、申し送り時点の個数ではなく`OK`を基準にする。
@@ -131,7 +132,7 @@ shasum -a 256 local/model.json
 ### 学習・時間順評価
 
 ```bash
-python -m keiba_prediction_lab.cli audit-csv local/training.csv
+python -m keiba_prediction_lab.cli audit-training-csv local/training.csv
 python -m keiba_prediction_lab.cli prepare-training \
   local/training.csv --output local/training-features.json
 python -m keiba_prediction_lab.cli evaluate-walk-forward \
@@ -216,6 +217,10 @@ git status --short
 
 少なくとも1つの利用可能なデータ源が承認された後にだけ、提供元固有アダプターを追加する。原データはGitHubへ置かず、合成または許諾済み最小fixtureでアダプターをテストする。
 
+取得処理を含まない旧ローカルJSON変換器は実装済みである。`convert-local-history-snapshot`と`convert-local-target-snapshot`は、すでに取得済みのスナップショットを共通CSVへ変換し、入力ハッシュ、取得時刻、代理時刻の仮定、ID方式をmanifestへ固定する。変換器は馬・騎手・調教師に同じ`normalized-name-v2`方式を用い、騎手の減量記号はIDから除外する。旧臨時実行のように履歴で馬名、本番で馬番を使う入力は、正式CSV境界でも識別子ドメイン不一致として拒否する。
+
+この変換器の存在はデータ源の承認を意味しない。取得元固有のネットワーク取得器を公開コードへ追加する作業は、引き続き利用条件の確認後に行う。
+
 ### 優先2：実データでの最初の固定評価
 
 承認済みデータから最低300レース、可能なら500レースを時間順に用意し、窓を事前固定する。まず現行条件付きロジットと一様確率を比較する。結果が悪くてもモデルを都合よく変更せず、最初の基準値として保存する。
@@ -232,11 +237,14 @@ LightGBMなどの表形式モデルは、実データの基準評価が得られ
 
 監査済み予測バンドル、開催日マニフェスト、ウォークフォワード成果物、任意のWIN5影予測を`ReadOnlyAppSnapshot`へ変換する型付き境界、IPv4ループバックだけで待ち受ける読み取り専用HTTP API、同APIだけを読む視覚画面は実装済みである。開催日マニフェストを指定すると競馬場別の全レース一覧が入口となり、レース選択で監査済み詳細へ移る。実購入候補1点100円、通常の影予測0円、WIN5影予測0円、勝率順位、評価指標は別領域に固定した。ファイル選択、学習、予測、保存操作はまだ追加しない。
 
+実成果物がない新しいMacでも画面を確認できるよう、`init-ui-demo`は12レース分の合成入力、モデル、監査済み予測バンドル、ウォークフォワード成果物、開催日マニフェストを上書きせず生成する。`serve-ui-demo`は全成果物を再監査し、既定ブラウザで読み取り専用画面を開く。合成デモは`local/`だけに置き、実レースの精度主張や購入判断へ転用しない。実成果物を表示するときは`serve-read-only-api --open-browser`を使う。
+
 ## 9. 現在の既知の限界
 
 - 承認済みの中央競馬実データ源がない
 - 実競馬での的中率・確率校正・回収率は未測定
 - 自動スクレイピングを提供していない
+- 取得済み旧JSONを共通CSVへ変換できるが、取得元固有の取得処理と実データ自体は含まない
 - 脚質、序盤速度、終盤速度、ペース耐性、想定ペースは明示入力であり、自動推定ではない
 - 現行三連単の実購入候補は基準Plackett–Luce分布の最上位1点で、ペースモデルは影予測のまま
 - WIN5は明示された同日5レースの各1着確率1位を束ねる購入額0円の影予測で、対象レースの自動判定とレース間依存の推定は未実装

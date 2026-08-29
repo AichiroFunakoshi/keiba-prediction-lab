@@ -51,7 +51,7 @@ git clone https://github.com/AichiroFunakoshi/keiba-prediction-lab.git
 cd keiba-prediction-lab
 python3 -m venv .venv
 source .venv/bin/activate
-python -m unittest discover -s tests
+PYTHONPATH=src python -m unittest discover -s tests
 ```
 
 以下の例では、ソースツリーから直接CLIを実行します。
@@ -72,8 +72,38 @@ python -m keiba_prediction_lab.cli init-input-templates --output local/race-inpu
 
 ### 2. 学習データを監査し、モデルを固定する
 
+すでにローカルへ保存済みの旧JSONスナップショットがある場合は、ネット取得処理と切り離して、共通CSVへ変換できます。この変換器は通信せず、馬・騎手・調教師を学習時と予測時で共通の正規化名IDへ変換します。以前の臨時運用で生じた「履歴は馬名、本番は馬番」というID尺度の不一致を防ぎます。
+
 ```bash
-python -m keiba_prediction_lab.cli audit-csv local/training.csv
+python -m keiba_prediction_lab.cli convert-local-history-snapshot \
+  local/raw/history.json \
+  --source-id local-private-snapshot \
+  --acquired-at 2026-08-23T08:30:00+09:00 \
+  --output local/converted-history
+```
+
+結果は`history.csv`、`training.csv`、入力ハッシュと仮定を記録した`snapshot-manifest.json`です。過去レースの`observed_at`と`result_known_at`は実測値ではなく、明示したオフセットによる保守的な代理時刻として記録されます。この`training.csv`は回顧的な初期基準評価用であり、実際に発走前固定したことの証拠にはしません。
+
+予測対象カードも、競馬場・コース種別ごとの馬場状態を別JSONで明示して、1レース1CSVへ変換できます。
+
+```json
+{"札幌:turf": "良", "札幌:dirt": "良", "default": "良"}
+```
+
+```bash
+python -m keiba_prediction_lab.cli convert-local-target-snapshot \
+  local/raw/cards.json local/raw/track-conditions.json \
+  --source-id local-private-snapshot \
+  --acquired-at 2026-08-23T08:30:00+09:00 \
+  --race-date 2026-08-23 \
+  --observed-at 2026-08-23T08:30:00+09:00 \
+  --output local/converted-targets
+```
+
+この機能は取得済みファイルを変換するだけです。外部サイトへのアクセス、利用権の承認、スクレイピング、再配布許諾を代行しません。元JSON、変換CSV、manifestはGitHubへコミットしません。
+
+```bash
+python -m keiba_prediction_lab.cli audit-training-csv local/training.csv
 python -m keiba_prediction_lab.cli prepare-training local/training.csv --output local/training.json
 python -m keiba_prediction_lab.cli train-model local/training.csv --output local/model.json
 ```
@@ -153,6 +183,15 @@ python -m keiba_prediction_lab.cli report-prediction-bundle outputs/race-1 --out
 
 将来のローカルUIが使用する読み取り専用データは、次のコマンドで確認できます。指定した成果物を監査し、実購入候補と影予測、ウォークフォワード指標を構造化JSONで返します。ファイルの探索・保存・変更は行いません。
 
+まず画面だけを安全に確認したい場合は、実データを含まない12レース分の合成デモを生成して起動できます。`local/`はGit管理対象外で、既存フォルダは上書きしません。表示される確率・評価値はUI確認専用であり、実レースの予想や購入判断には使用できません。
+
+```bash
+python -m keiba_prediction_lab.cli init-ui-demo --output local/ui-demo
+python -m keiba_prediction_lab.cli serve-ui-demo local/ui-demo
+```
+
+2つ目のコマンドは既定ブラウザで`http://127.0.0.1:8765/`を開きます。自動で開かない場合はURLを手動で開いてください。終了はターミナルで`Control-C`です。すでにデモを生成済みなら、次回は`serve-ui-demo`だけを実行します。ブラウザを自動起動しない場合は`--no-open-browser`を付けます。
+
 ```bash
 python -m keiba_prediction_lab.cli inspect-app-state \
   --prediction-bundle outputs/race-1 \
@@ -166,7 +205,8 @@ python -m keiba_prediction_lab.cli inspect-app-state \
 python -m keiba_prediction_lab.cli serve-read-only-api \
   --prediction-bundle outputs/race-1 \
   --walk-forward-report reports/walk-forward.json \
-  --win5-forecast outputs/win5-2026-08-30.json
+  --win5-forecast outputs/win5-2026-08-30.json \
+  --open-browser
 ```
 
 開催日の全レースを入口画面にまとめる場合は、開催日マニフェストを用意します。各`prediction_bundle`はマニフェストからの相対パスまたは絶対パスで明示し、画面側は全バンドルを監査してから競馬場タブと1R〜12Rの一覧を作ります。

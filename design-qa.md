@@ -1,13 +1,15 @@
 # Design QA
 
-- source visual truth path: `/Users/inaminetetsuo/.codex/generated_images/01a00e9e-6534-7bf3-a89c-699b140130b3/exec-061a1eae-6468-4cc6-ae51-455bff02e198.png`
-- implementation screenshot path: `/private/tmp/keiba-race-day-dashboard-final.png`
-- detail screenshot path: `/private/tmp/keiba-race-detail-no-scroll.png`
-- combined comparison path: `/private/tmp/keiba-dashboard-comparison-final.png`
+- historical source visual filename: `exec-061a1eae-6468-4cc6-ae51-455bff02e198.png`
+- historical implementation screenshot: `keiba-race-day-dashboard-final.png`
+- historical detail screenshot: `keiba-race-detail-no-scroll.png`
+- historical combined comparison: `keiba-dashboard-comparison-final.png`
 - viewport: 1440 x 1024 CSS pixels at device scale 1
 - source pixels: 1487 x 1058, normalized to 1440 x 1024
 - implementation pixels: 1440 x 1024
 - state: twelve synthetic audited prediction bundles, one race-day manifest, an audited five-leg WIN5 shadow, and an audited walk-forward report
+
+The original captures were local QA artifacts and are not part of this repository. Their former absolute Mac and temporary-directory paths were intentionally removed because they were not portable evidence. Re-running visual QA must create a new dated evidence set and record either repository-relative files that are safe to publish or hashes for deliberately local-only files.
 
 ## Full-view comparison evidence
 

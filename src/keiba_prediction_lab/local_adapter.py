@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -42,6 +43,9 @@ class LocalFeatureBundle:
     scheduled_at: datetime
     observed_at: datetime
     history_row_count: int
+    horse_history_coverage_count: int
+    jockey_history_coverage_count: int
+    trainer_history_coverage_count: int
     features: tuple[FeatureRow, ...]
 
 
@@ -158,6 +162,61 @@ def load_targets_csv(path: str | Path) -> tuple[TargetRunner, ...]:
     """Load result-free target rows; any additional column is rejected."""
     source = Path(path)
     return _load_targets_bytes(source.read_bytes(), source.name)
+
+
+def _identity_namespace(value: str) -> str | None:
+    parts = value.split(":", 2)
+    return ":".join(parts[:2]) if len(parts) == 3 else None
+
+
+def _validate_identity_compatibility(
+    history: tuple[RacePerformance, ...],
+    targets: tuple[TargetRunner, ...],
+) -> None:
+    """Reject obvious history/target identifier-domain mismatches.
+
+    A previous local run used horse names in history and post-position numbers
+    in targets.  That silently reset every horse-history feature to its prior.
+    Debut runners are valid, so zero overlap alone is not rejected; conflicting
+    explicit namespaces or numeric-vs-text domains are rejected instead.
+    """
+    if not history or not targets:
+        return
+    for field_name in ("horse_id", "jockey_id", "trainer_id"):
+        historical = {getattr(row, field_name) for row in history}
+        current = {getattr(row, field_name) for row in targets}
+        history_namespaces = {
+            namespace
+            for value in historical
+            if (namespace := _identity_namespace(value)) is not None
+        }
+        target_namespaces = {
+            namespace
+            for value in current
+            if (namespace := _identity_namespace(value)) is not None
+        }
+        history_has_raw = any(_identity_namespace(value) is None for value in historical)
+        target_has_raw = any(_identity_namespace(value) is None for value in current)
+        if (history_namespaces and history_has_raw) or (target_namespaces and target_has_raw):
+            raise ValueError(f"{field_name} mixes namespaced and raw identifiers")
+        if bool(history_namespaces) != bool(target_namespaces):
+            raise ValueError(
+                f"{field_name} namespace usage differs between history and targets"
+            )
+        if (
+            history_namespaces
+            and target_namespaces
+            and history_namespaces.isdisjoint(target_namespaces)
+        ):
+            raise ValueError(
+                f"{field_name} namespace differs between history and targets"
+            )
+        historical_numeric = all(re.fullmatch(r"\d+", value) for value in historical)
+        current_numeric = all(re.fullmatch(r"\d+", value) for value in current)
+        if historical_numeric != current_numeric:
+            raise ValueError(
+                f"{field_name} identifier domain differs between history and targets"
+            )
 
 
 def _load_training_bytes(
@@ -309,6 +368,7 @@ def build_local_feature_bundle(
     ).hexdigest()
     history = _load_history_bytes(history_content, history_source.name)
     targets = _load_targets_bytes(targets_content, targets_source.name)
+    _validate_identity_compatibility(history, targets)
     features = generate_features(
         history,
         targets,
@@ -322,6 +382,9 @@ def build_local_feature_bundle(
         scheduled_at=targets[0].scheduled_at,
         observed_at=targets[0].observed_at,
         history_row_count=len(history),
+        horse_history_coverage_count=sum(row.horse_starts > 0 for row in features),
+        jockey_history_coverage_count=sum(row.jockey_starts > 0 for row in features),
+        trainer_history_coverage_count=sum(row.trainer_starts > 0 for row in features),
         features=features,
     )
 
@@ -331,7 +394,7 @@ def save_local_feature_bundle(
 ) -> None:
     """Write a new JSON feature artifact without overwriting existing output."""
     payload = {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "history_sha256": bundle.history_sha256,
         "targets_sha256": bundle.targets_sha256,
         "input_data_version": bundle.input_data_version,
@@ -339,6 +402,12 @@ def save_local_feature_bundle(
         "scheduled_at": bundle.scheduled_at.isoformat(),
         "observed_at": bundle.observed_at.isoformat(),
         "history_row_count": bundle.history_row_count,
+        "feature_history_coverage": {
+            "horse": bundle.horse_history_coverage_count,
+            "jockey": bundle.jockey_history_coverage_count,
+            "trainer": bundle.trainer_history_coverage_count,
+            "runner_count": len(bundle.features),
+        },
         "features": [
             {
                 **asdict(row),
