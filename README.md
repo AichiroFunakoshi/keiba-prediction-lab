@@ -172,6 +172,40 @@ python -m keiba_prediction_lab.cli predict-race \
 
 出力ディレクトリが既に存在する場合は失敗し、事前予測を上書きしません。
 
+複数競馬場を含む開催日全体は、明示的な計画JSONから一括固定できます。各入力パスは計画JSONからの相対パスまたは絶対パスです。
+
+```json
+{
+  "schema_version": "1.0",
+  "race_date": "2026-08-30",
+  "races": [
+    {
+      "venue": "新潟",
+      "race_number": 1,
+      "targets": "converted-targets/targets/20260830-新潟-01.csv",
+      "pace_profiles": "pace/20260830-新潟-01.csv",
+      "pace_scenario": "pace/20260830-新潟-01.json"
+    }
+  ]
+}
+```
+
+```bash
+PYTHONPATH=src python -m keiba_prediction_lab.cli predict-race-day \
+  local/model.json local/history.csv local/race-day-plan.json \
+  --frozen-at 2026-08-30T09:00:00+09:00 \
+  --output outputs/2026-08-30
+
+PYTHONPATH=src python -m keiba_prediction_lab.cli audit-race-day \
+  outputs/2026-08-30
+
+PYTHONPATH=src python -m keiba_prediction_lab.cli serve-read-only-api \
+  --race-day-manifest outputs/2026-08-30/race-day.json \
+  --open-browser
+```
+
+全レースを先に検証し、1件でも不正なら出力ディレクトリを作りません。全件成功時だけ各予測バンドル、UI用`race-day.json`、開催日全体の`race-day-provenance.json`を原子的に保存します。全レースで同一のモデル・履歴・固定時刻・予測段階を強制し、開催日監査では各レースの入力来歴まで再照合します。
+
 ### 5. 保存内容を監査し、人間向けレポートを作る
 
 ```bash

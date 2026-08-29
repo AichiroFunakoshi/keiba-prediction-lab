@@ -32,6 +32,8 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli convert-local-target-snapshot 
 
 この変換器はローカルファイルだけを読み、外部サイトへアクセスしない。取得方法や利用権の確認を代替せず、元JSON・変換CSV・manifestはいずれもGit管理しない。
 
+変換された複数の`targets/*.csv`は、各レースの脚質CSVと想定ペースJSONを用意し、開催日計画へ列挙して`predict-race-day`へ渡せる。計画は日付、競馬場、レース番号と3入力パスを明示し、プログラムはディレクトリから対象レースを推測しない。全レースが同じモデル、履歴、発走前固定時刻、予測段階で検証できた場合だけ、UI用開催日マニフェストを含む出力を保存する。詳細は[予測パイプライン](PIPELINE.md)を参照する。
+
 ## ファイルの分離
 
 - `history.csv`: 対象レースより前に結果が判明した過去走だけを格納する

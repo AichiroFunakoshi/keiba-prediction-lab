@@ -30,6 +30,8 @@ class PredictionBundleAudit:
     actual_ticket_count: int
     actual_stake_yen: int
     shadow_stake_yen: int
+    model_sha256: str
+    history_sha256: str
 
 
 @dataclass(frozen=True)
@@ -78,7 +80,7 @@ def _envelope_digest(content: bytes, label: str) -> str:
 
 def _verify_provenance(
     content: bytes, input_data_version: str
-) -> None:
+) -> tuple[str, str]:
     envelope = _json_bytes(content, "input provenance")
     _exact_keys(
         envelope, frozenset({"schema_version", "sha256", "payload"}),
@@ -114,6 +116,7 @@ def _verify_provenance(
         raise ValueError("input provenance version does not match component hashes")
     if combined != input_data_version:
         raise ValueError("input provenance does not match prediction artifacts")
+    return component_hashes["model"], component_hashes["history"]
 
 
 def load_audited_prediction_bundle(
@@ -231,7 +234,7 @@ def load_audited_prediction_bundle(
         != bet_types.forecast.place_payout_slots
     ):
         raise ValueError("pipeline manifest bet-type metadata is invalid")
-    _verify_provenance(
+    model_sha256, history_sha256 = _verify_provenance(
         contents["input-provenance.json"], actual.input_data_version
     )
     audit = PredictionBundleAudit(
@@ -244,6 +247,8 @@ def load_audited_prediction_bundle(
         actual_ticket_count=len(actual.trifecta_tickets),
         actual_stake_yen=actual.trifecta_tickets[0].stake_yen,
         shadow_stake_yen=0,
+        model_sha256=model_sha256,
+        history_sha256=history_sha256,
     )
     return AuditedPredictionBundle(audit=audit, bundle=bundle)
 

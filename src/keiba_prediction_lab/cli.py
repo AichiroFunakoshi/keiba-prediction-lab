@@ -47,6 +47,7 @@ from .model_artifact import (
     train_local_model_artifact,
 )
 from .prediction_report import build_prediction_bundle_markdown
+from .race_day_pipeline import audit_local_race_day, build_and_save_local_race_day
 from .snapshot_adapter import (
     convert_history_snapshot,
     convert_target_snapshot,
@@ -145,6 +146,27 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     predict_race.add_argument("--place-payout-slots", type=int)
     predict_race.add_argument("--output", type=Path, required=True)
+
+    predict_race_day = subparsers.add_parser(
+        "predict-race-day",
+        help="atomically predict every race in an explicit local race-day plan",
+    )
+    predict_race_day.add_argument("model", type=Path)
+    predict_race_day.add_argument("history", type=Path)
+    predict_race_day.add_argument("plan", type=Path)
+    predict_race_day.add_argument("--frozen-at", required=True)
+    predict_race_day.add_argument(
+        "--phase", choices=tuple(item.value for item in PredictionPhase),
+        default=PredictionPhase.PRE_ODDS.value,
+    )
+    predict_race_day.add_argument("--place-payout-slots", type=int)
+    predict_race_day.add_argument("--output", type=Path, required=True)
+
+    audit_race_day = subparsers.add_parser(
+        "audit-race-day",
+        help="re-audit a saved local race day and all prediction bundles",
+    )
+    audit_race_day.add_argument("directory", type=Path)
 
     predict_win5 = subparsers.add_parser(
         "predict-win5",
@@ -473,6 +495,56 @@ def main(argv: Sequence[str] | None = None) -> int:
         }, ensure_ascii=False, indent=2))
         return 0
 
+    if args.command == "predict-race-day":
+        try:
+            result = build_and_save_local_race_day(
+                args.model,
+                args.history,
+                args.plan,
+                args.output,
+                frozen_at=datetime.fromisoformat(args.frozen_at),
+                phase=PredictionPhase(args.phase),
+                place_payout_slots=args.place_payout_slots,
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "output": str(result.output_directory),
+            "race_day_manifest": str(result.race_day_manifest),
+            "provenance": str(result.provenance),
+            "race_count": result.race_count,
+            "venue_count": result.venue_count,
+            "frozen_at": args.frozen_at,
+            "phase": args.phase,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "audit-race-day":
+        try:
+            audit = audit_local_race_day(args.directory)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "race_date": audit.race_date.isoformat(),
+            "frozen_at": audit.frozen_at.isoformat(),
+            "phase": audit.phase.value,
+            "race_count": audit.race_count,
+            "venue_count": audit.venue_count,
+            "model_sha256": audit.model_sha256,
+            "history_sha256": audit.history_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
     if args.command == "predict-win5":
         try:
             forecast = build_win5_forecast(
@@ -572,6 +644,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "actual_ticket_count": report.actual_ticket_count,
             "actual_stake_yen": report.actual_stake_yen,
             "shadow_stake_yen": report.shadow_stake_yen,
+            "model_sha256": report.model_sha256,
+            "history_sha256": report.history_sha256,
         }, ensure_ascii=False, indent=2))
         return 0
 
