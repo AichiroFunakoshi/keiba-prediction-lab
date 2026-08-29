@@ -73,8 +73,33 @@ keiba-lab generate-pace-inputs \
 
 推定は予測観測時刻までに結果が確定した直近5走だけを使用する。序盤位置、終盤の位置上昇、上がり順位、先行して失速しなかった度合いを0〜1へ正規化し、履歴が少ない馬は0.5へ縮約する。履歴が1件もないレースは`average`、信頼度0とする。
 
+## 開催日入力の一括作成
+
+Windows側で作成した履歴、今週RACE、当日`0B14`の3スナップショットをMacのローカル領域へ渡し、RA・SE・WE・WH・AVを公式JV-Data 4.9仕様の固定位置で変換する。
+
+```bash
+keiba-lab prepare-jra-van-race-day \
+  local/jra-van/history \
+  local/jra-van/20260829-race \
+  local/jra-van/20260829-realtime \
+  --race-date 2026-08-29 \
+  --observed-at 2026-08-29T09:10:00+09:00 \
+  --output local/prepared/20260829
+```
+
+この処理は次を一括生成する。
+
+- `history.csv`と`training.csv`
+- コーナー・上がり順位用`pace-history.csv`
+- 取消・除外を除いたレース別`targets.csv`
+- レース別`pace-profiles.csv`と`pace-scenario.json`
+- そのまま`predict-race-day`へ渡せる`race-day-plan.json`
+- 原スナップショットと全出力のSHA-256を持つアダプターマニフェスト
+
+取得マニフェストの改変、取得時刻が観測時刻より後、当日馬場不足、発走後観測、3頭未満、未対応トラックコードがあれば、出力全体を残さず失敗する。
+
 ## 現在の実行境界
 
-公開コードにはJV-Link取得器と脚質・想定ペース生成器を含む。実際の当日レコード取得には、利用者本人のData Lab.契約、利用キー、Windows環境が必要である。この3点がない環境で成功結果を合成したり、JRA一般Webページのスクレイピングへ自動的に切り替えたりしない。
+公開コードにはJV-Link取得器、JV-Data 4.9固定長アダプター、脚質・想定ペース生成器を含む。実際の当日レコード取得には、利用者本人のData Lab.契約、利用キー、Windows環境が必要である。この3点がない環境で成功結果を合成したり、JRA一般Webページのスクレイピングへ自動的に切り替えたりしない。
 
-取得した固定長JV-Dataを共通の`history.csv`・`targets.csv`・`pace-history.csv`へ変換する版固定アダプターは次工程である。変換完了までは、取得成功を「開催日一括予測が完了した」とは扱わない。
+アダプターはRA・SE・WE・WH・AVの必要項目だけを版固定している。JRA-VANが仕様を更新した場合は、仕様差分を確認してアダプター版と合成fixtureを同時に更新する。

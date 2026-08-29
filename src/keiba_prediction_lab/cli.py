@@ -34,6 +34,7 @@ from .jra_van_fetch import (
     fetch_jra_van_on_windows,
     fetch_jra_van_realtime_on_windows,
 )
+from .jra_van_adapter import prepare_jra_van_race_day
 from .local_adapter import (
     build_local_feature_bundle,
     build_time_safe_training_bundle,
@@ -153,6 +154,17 @@ def _build_parser() -> argparse.ArgumentParser:
     fetch_realtime.add_argument("--dataspec", required=True)
     fetch_realtime.add_argument("--key", required=True)
     fetch_realtime.add_argument("--sid", default="UNKNOWN")
+
+    prepare_jra_van = subparsers.add_parser(
+        "prepare-jra-van-race-day",
+        help="convert licensed JV-Data snapshots into prediction-ready day inputs",
+    )
+    prepare_jra_van.add_argument("history_snapshot", type=Path)
+    prepare_jra_van.add_argument("race_snapshot", type=Path)
+    prepare_jra_van.add_argument("realtime_snapshot", type=Path)
+    prepare_jra_van.add_argument("--race-date", required=True)
+    prepare_jra_van.add_argument("--observed-at", required=True)
+    prepare_jra_van.add_argument("--output", type=Path, required=True)
 
     train_model = subparsers.add_parser(
         "train-model",
@@ -551,6 +563,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             "records": str(result.records_path), "manifest": str(result.manifest_path),
             "record_count": result.record_count, "records_sha256": result.records_sha256,
             "acquired_at": result.acquired_at.isoformat(), "source_id": "jra-van-data-lab",
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "prepare-jra-van-race-day":
+        try:
+            plan = prepare_jra_van_race_day(
+                args.history_snapshot, args.race_snapshot,
+                args.realtime_snapshot, args.output,
+                race_date=date.fromisoformat(args.race_date),
+                observed_at=datetime.fromisoformat(args.observed_at),
+            )
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True, "output": str(args.output),
+            "race_day_plan": str(plan), "source_id": "jra-van-data-lab",
         }, ensure_ascii=False, indent=2))
         return 0
 

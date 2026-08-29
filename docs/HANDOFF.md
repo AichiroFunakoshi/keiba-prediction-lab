@@ -225,7 +225,7 @@ git status --short
 
 2026年8月29日、JRA-VAN Data Lab.を契約者本人のローカル利用に限って承認した。公式JV-Linkを使うWindows専用取得器`fetch-jra-van`と`fetch-jra-van-realtime`は、取得時刻、要求条件、原レコードSHA-256を保存し、途中失敗時に部分出力を残さない。M1 Macから直接は実行できず、Data Lab.契約・利用キー・Windows VMまたは別Windows PCが必要である。
 
-過去のコーナー順位と上がり順位から脚質・想定ペースを生成する`generate-pace-inputs`も実装済みである。次工程は、取得した固定長RA・SE・WE・WHレコードを共通CSVへ変換する版固定JRA-VANアダプターである。
+過去のコーナー順位と上がり順位から脚質・想定ペースを生成する`generate-pace-inputs`も実装済みである。`prepare-jra-van-race-day`は取得マニフェストを検証し、固定長RA・SE・WE・WH・AVレコードから、履歴、学習、ペース履歴、取消反映済み対象、展開入力、開催日計画を原子的に生成する。
 
 ### 優先2：実データでの最初の固定評価
 
