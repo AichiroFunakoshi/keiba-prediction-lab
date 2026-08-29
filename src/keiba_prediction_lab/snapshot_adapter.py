@@ -364,6 +364,9 @@ def convert_target_snapshot(
         for horse in horses:
             if not isinstance(horse, dict):
                 raise ValueError(f"snapshot race {race_id} horse must be an object")
+            body_weight = _optional_integer(
+                horse.get("body_weight_kg"), "body_weight_kg"
+            )
             rows.append({
                 "race_id": race_id,
                 "scheduled_at": scheduled.isoformat(),
@@ -377,7 +380,7 @@ def convert_target_snapshot(
                 "distance_m": distance,
                 "post_position": _positive_integer(horse.get("number"), "number"),
                 "carried_weight_kg": _carried_weight(horse.get("weight")),
-                "body_weight_kg": "",
+                "body_weight_kg": body_weight if body_weight is not None else "",
             })
         _validate_race_rows(rows, race_id)
         rows.sort(key=lambda row: row["post_position"])
@@ -399,7 +402,7 @@ def convert_target_snapshot(
         "race_count": len(seen_races),
         "runner_count": runner_count,
         "network_access_performed": False,
-        "body_weight_policy": "missing until explicitly present in a later snapshot contract",
+        "body_weight_policy": "preserved when present in the local card snapshot",
     }
     output = Path(output_directory)
     manifest_path, output_paths = _write_outputs(output, outputs, manifest)

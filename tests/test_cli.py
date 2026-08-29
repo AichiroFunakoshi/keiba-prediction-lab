@@ -282,7 +282,7 @@ class CliTest(unittest.TestCase):
 
         payload = json.loads(output.getvalue())
         self.assertEqual(exit_code, 0)
-        self.assertEqual(len(payload), 5)
+        self.assertEqual(len(payload), 6)
 
     def test_valid_csv_audit_returns_zero(self) -> None:
         output = io.StringIO()

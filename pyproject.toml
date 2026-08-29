@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Reproducible evaluation tools for horse-racing prediction research"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = ["lxml>=5,<7"]
 license = { text = "MIT" }
 authors = [{ name = "Aichiro Funakoshi" }]
 

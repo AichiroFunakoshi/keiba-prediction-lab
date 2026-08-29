@@ -14,6 +14,17 @@
       "reason": "Safe for tests and examples, but not suitable for model training."
     },
     {
+      "source_id": "jra-public-web-private-use",
+      "name": "JRA public race pages (private local use)",
+      "homepage": "https://www.jra.go.jp/",
+      "scope": "Current JRA race cards, meeting conditions, and linked past race results",
+      "declared_license": "No open-data license; JRA website terms apply",
+      "provenance": "Public pages published by the Japan Racing Association and acquired directly by the user on their own machine.",
+      "redistribution": "prohibited",
+      "status": "approved",
+      "reason": "Approved only for conservative, rate-limited acquisition for the user's private local analysis. The fetcher requires an explicit acknowledgement, records every URL and hash, and raw or derived row-level data must never be committed or redistributed. This is not an open-data approval."
+    },
+    {
       "source_id": "jra-van-data-lab",
       "name": "JRA-VAN Data Lab.",
       "homepage": "https://jra-van.jp/dlb/",

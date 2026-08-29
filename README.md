@@ -330,6 +330,8 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 
 詳しくは [データ利用方針](docs/DATA_USAGE_POLICY.md) と [ローカルデータ契約](docs/LOCAL_DATA_ADAPTER.md) を参照してください。
 
+無料の標準実データ経路は、本人のMacからJRA公式公開ページを低頻度で取得する`fetch-jra-web`である。取得物は私的分析だけに使い、GitHubや第三者へ再配布しない。取得後は`prepare-jra-web-race-day`で、学習CSV、当日CSV、脚質、想定ペース、開催日計画を一括生成する。手順は[JRA公式公開ページを使う無料ローカル運用](docs/JRA_WEB_WORKFLOW.md)を参照する。JRA-VAN Data Lab.は有料の代替経路として残す。
+
 ## 設計資料
 
 - [プロジェクト申し送り](docs/HANDOFF.md)
@@ -342,6 +344,7 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 - [三連単の条件付き確率と影予測](docs/TRIFECTA_PORTFOLIOS.md)
 - [脚質・想定ペースモデル](docs/PACE_MODEL.md)
 - [JRA-VAN Data Lab. ローカル取得](docs/JRA_VAN_WORKFLOW.md)
+- [JRA公式公開ページを使う無料ローカル運用](docs/JRA_WEB_WORKFLOW.md)
 - [三連単生成モデルの対応比較](docs/MODEL_COMPARISON.md)
 - [1レース予測パイプライン](docs/PIPELINE.md)
 - [全6馬券種の事前予測](docs/BET_TYPE_SHADOW_FORECASTS.md)

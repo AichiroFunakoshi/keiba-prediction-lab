@@ -17,17 +17,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DataSourceRegistryTest(unittest.TestCase):
-    def test_registry_is_valid_and_keeps_real_sources_unapproved(self) -> None:
+    def test_registry_is_valid_and_limits_approved_real_sources(self) -> None:
         sources = load_source_registry(ROOT / "data" / "sources.json")
 
-        self.assertEqual(len(sources), 5)
-        self.assertEqual(len({source.source_id for source in sources}), 5)
+        self.assertEqual(len(sources), 6)
+        self.assertEqual(len({source.source_id for source in sources}), 6)
         jra_van = next(source for source in sources if source.source_id == "jra-van-data-lab")
         self.assertIs(jra_van.status, SourceStatus.APPROVED)
         self.assertIs(jra_van.redistribution, RedistributionStatus.PROHIBITED)
+        jra_web = next(
+            source for source in sources
+            if source.source_id == "jra-public-web-private-use"
+        )
+        self.assertIs(jra_web.status, SourceStatus.APPROVED)
+        self.assertIs(jra_web.redistribution, RedistributionStatus.PROHIBITED)
         unapproved_real = [
             source for source in sources
-            if source.scope != "synthetic" and source.source_id != "jra-van-data-lab"
+            if source.scope != "synthetic" and source.source_id not in {
+                "jra-van-data-lab", "jra-public-web-private-use",
+            }
         ]
         self.assertTrue(unapproved_real)
         self.assertTrue(all(

@@ -35,6 +35,8 @@ from .jra_van_fetch import (
     fetch_jra_van_realtime_on_windows,
 )
 from .jra_van_adapter import prepare_jra_van_race_day
+from .jra_web_adapter import prepare_jra_web_race_day
+from .jra_web_fetch import fetch_jra_web_race_day
 from .local_adapter import (
     build_local_feature_bundle,
     build_time_safe_training_bundle,
@@ -165,6 +167,27 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare_jra_van.add_argument("--race-date", required=True)
     prepare_jra_van.add_argument("--observed-at", required=True)
     prepare_jra_van.add_argument("--output", type=Path, required=True)
+
+    fetch_jra_web = subparsers.add_parser(
+        "fetch-jra-web",
+        help="privately fetch public JRA race cards and bounded past results on macOS",
+    )
+    fetch_jra_web.add_argument("--race-date", required=True)
+    fetch_jra_web.add_argument("--max-history-races", type=int, default=360)
+    fetch_jra_web.add_argument("--delay-seconds", type=float, default=1.0)
+    fetch_jra_web.add_argument(
+        "--accept-private-use-terms",
+        action="store_true",
+        help="acknowledge local private use and no redistribution",
+    )
+    fetch_jra_web.add_argument("--output", type=Path, required=True)
+
+    prepare_jra_web = subparsers.add_parser(
+        "prepare-jra-web-race-day",
+        help="convert a private JRA public-web snapshot into formal race-day inputs",
+    )
+    prepare_jra_web.add_argument("snapshot", type=Path)
+    prepare_jra_web.add_argument("--output", type=Path, required=True)
 
     train_model = subparsers.add_parser(
         "train-model",
@@ -581,6 +604,48 @@ def main(argv: Sequence[str] | None = None) -> int:
             "is_valid": True, "output": str(args.output),
             "race_day_plan": str(plan), "source_id": "jra-van-data-lab",
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "fetch-jra-web":
+        try:
+            result = fetch_jra_web_race_day(
+                date.fromisoformat(args.race_date),
+                args.output,
+                max_history_races=args.max_history_races,
+                delay_seconds=args.delay_seconds,
+                accept_private_use_terms=args.accept_private_use_terms,
+            )
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "source_id": "jra-public-web-private-use",
+            "private_use_only": True,
+            "output": str(result.output_directory),
+            "manifest": str(result.manifest_path),
+            "cards": str(result.cards_path),
+            "history": str(result.history_path),
+            "track_conditions": str(result.track_conditions_path),
+            "acquired_at": result.acquired_at.isoformat(),
+            "race_count": result.race_count,
+            "history_race_count": result.history_race_count,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "prepare-jra-web-race-day":
+        try:
+            result = prepare_jra_web_race_day(args.snapshot, args.output)
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({"is_valid": True, **result}, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "train-model":
