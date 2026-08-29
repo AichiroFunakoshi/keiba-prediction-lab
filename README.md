@@ -192,6 +192,8 @@ python -m keiba_prediction_lab.cli serve-ui-demo local/ui-demo
 
 2つ目のコマンドは既定ブラウザで`http://127.0.0.1:8765/`を開きます。自動で開かない場合はURLを手動で開いてください。終了はターミナルで`Control-C`です。すでにデモを生成済みなら、次回は`serve-ui-demo`だけを実行します。ブラウザを自動起動しない場合は`--no-open-browser`を付けます。
 
+macOSでは、リポジトリ直下の`open-ui-demo.command`をFinderでダブルクリックしても同じ画面を起動できます。初回だけ合成デモを自動生成し、2回目以降は保存済みデモを再監査して表示します。実行中はTerminalウインドウを閉じず、終了時はそのウインドウで`Control-C`を押します。仮想環境`.venv`がない場合や起動に失敗した場合は、原因を確認できるようTerminalを開いたまま停止します。
+
 ```bash
 python -m keiba_prediction_lab.cli inspect-app-state \
   --prediction-bundle outputs/race-1 \
