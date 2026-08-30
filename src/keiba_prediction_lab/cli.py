@@ -36,7 +36,7 @@ from .jra_van_fetch import (
 )
 from .jra_van_adapter import prepare_jra_van_race_day
 from .jra_web_adapter import prepare_jra_web_race_day
-from .jra_web_fetch import fetch_jra_web_race_day
+from .jra_web_fetch import fetch_jra_web_race_day, refresh_jra_web_race_day
 from .local_adapter import (
     build_local_feature_bundle,
     build_time_safe_training_bundle,
@@ -48,6 +48,11 @@ from .local_pipeline import (
     save_local_pipeline_run,
 )
 from .local_http import DEFAULT_READ_ONLY_API_PORT, serve_read_only_api
+from .market_guard import (
+    MarketGuardPolicy,
+    build_market_guard_report_from_snapshot,
+    save_market_guard_report,
+)
 from .model_artifact import (
     ModelTrainingParameters,
     save_trained_model_artifact,
@@ -182,6 +187,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     fetch_jra_web.add_argument("--output", type=Path, required=True)
 
+    refresh_jra_web = subparsers.add_parser(
+        "refresh-jra-web-race-day",
+        help="refetch same-day JRA cards, weights, odds, scratches, and conditions",
+    )
+    refresh_jra_web.add_argument("snapshot", type=Path)
+    refresh_jra_web.add_argument("--delay-seconds", type=float, default=1.0)
+    refresh_jra_web.add_argument(
+        "--accept-private-use-terms",
+        action="store_true",
+        help="acknowledge local private use and no redistribution",
+    )
+    refresh_jra_web.add_argument("--output", type=Path, required=True)
+
     prepare_jra_web = subparsers.add_parser(
         "prepare-jra-web-race-day",
         help="convert a private JRA public-web snapshot into formal race-day inputs",
@@ -237,6 +255,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="re-audit a saved local race day and all prediction bundles",
     )
     audit_race_day.add_argument("directory", type=Path)
+
+    market_guard = subparsers.add_parser(
+        "build-market-guard",
+        help="freeze a post-odds abstention guard without changing pre-odds predictions",
+    )
+    market_guard.add_argument("race_day", type=Path)
+    market_guard.add_argument("snapshot", type=Path)
+    market_guard.add_argument("--max-market-rank", type=int, default=3)
+    market_guard.add_argument("--output", type=Path, required=True)
 
     predict_win5 = subparsers.add_parser(
         "predict-win5",
@@ -648,6 +675,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"is_valid": True, **result}, ensure_ascii=False, indent=2))
         return 0
 
+    if args.command == "refresh-jra-web-race-day":
+        try:
+            result = refresh_jra_web_race_day(
+                args.snapshot,
+                args.output,
+                delay_seconds=args.delay_seconds,
+                accept_private_use_terms=args.accept_private_use_terms,
+            )
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "source_id": "jra-public-web-private-use",
+            "private_use_only": True,
+            "output": str(result.output_directory),
+            "manifest": str(result.manifest_path),
+            "cards": str(result.cards_path),
+            "history": str(result.history_path),
+            "track_conditions": str(result.track_conditions_path),
+            "acquired_at": result.acquired_at.isoformat(),
+            "race_count": result.race_count,
+            "history_race_count": result.history_race_count,
+            "history_reused_without_network": True,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
     if args.command == "train-model":
         parameters = ModelTrainingParameters(
             prior_strength=args.prior_strength,
@@ -743,6 +800,32 @@ def main(argv: Sequence[str] | None = None) -> int:
             "venue_count": audit.venue_count,
             "model_sha256": audit.model_sha256,
             "history_sha256": audit.history_sha256,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "build-market-guard":
+        try:
+            report = build_market_guard_report_from_snapshot(
+                args.race_day,
+                args.snapshot,
+                policy=MarketGuardPolicy(args.max_market_rank),
+            )
+            digest = save_market_guard_report(report, args.output)
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "status": "research-shadow",
+            "output": str(args.output),
+            "sha256": digest,
+            "race_count": len(report.rows),
+            "eligible_race_count": report.eligible_race_count,
+            "max_market_rank": report.policy.max_market_rank,
+            "observed_at": report.observed_at.isoformat(),
         }, ensure_ascii=False, indent=2))
         return 0
 

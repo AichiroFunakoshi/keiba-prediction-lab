@@ -332,6 +332,8 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 
 無料の標準実データ経路は、本人のMacからJRA公式公開ページを低頻度で取得する`fetch-jra-web`である。取得物は私的分析だけに使い、GitHubや第三者へ再配布しない。取得後は`prepare-jra-web-race-day`で、学習CSV、当日CSV、脚質、想定ペース、開催日計画を一括生成する。手順は[JRA公式公開ページを使う無料ローカル運用](docs/JRA_WEB_WORKFLOW.md)を参照する。JRA-VAN Data Lab.は有料の代替経路として残す。
 
+夜間取得後は`refresh-jra-web-race-day`で履歴を再利用しつつ、最初のレース前に馬体重、取消、馬場、単勝オッズを更新できる。独立予想の固定後は`build-market-guard`で市場との大幅乖離を研究用影成果物として記録できる。オッズはモデル確率や順位を変更しない。詳細は[市場乖離ガード](docs/MARKET_GUARD.md)を参照する。
+
 ## 設計資料
 
 - [プロジェクト申し送り](docs/HANDOFF.md)

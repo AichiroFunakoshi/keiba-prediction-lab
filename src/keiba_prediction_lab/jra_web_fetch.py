@@ -28,6 +28,7 @@ from lxml import html
 JST = ZoneInfo("Asia/Tokyo")
 SOURCE_ID = "jra-public-web-private-use"
 FETCHER_VERSION = "jra-public-web-v1"
+REFRESHER_VERSION = "jra-public-web-race-day-refresh-v1"
 BASE = "https://www.jra.go.jp"
 CARD_ENDPOINT = f"{BASE}/JRADB/accessD.html"
 INFO_ENDPOINT = f"{BASE}/JRADB/accessI.html"
@@ -281,7 +282,7 @@ def parse_card(content: bytes, cname: str) -> dict:
 
 def _result_identity(url: str) -> tuple[str, int, str]:
     match = re.search(
-        r"pw01sde10(?P<course>\d{2})20\d{6}(?P<race>\d{2})(?P<date>\d{8})/[A-Z0-9]+",
+        r"pw01sde(?:01|10)(?P<course>\d{2})20\d{6}(?P<race>\d{2})(?P<date>\d{8})/[A-Z0-9]+",
         url,
     )
     if match is None or match.group("course") not in COURSE_TO_VENUE:
@@ -475,4 +476,136 @@ def fetch_jra_web_race_day(
         acquired_at,
         len(cards),
         len(history),
+    )
+
+
+def _validated_snapshot_bytes(
+    directory: Path,
+) -> tuple[dict, date, dict[str, bytes]]:
+    """Load an unchanged private-use snapshot for a result-free refresh."""
+    manifest_content = (directory / "acquisition-manifest.json").read_bytes()
+    manifest = json.loads(manifest_content.decode("utf-8"))
+    if not isinstance(manifest, dict) or manifest.get("source_id") != SOURCE_ID:
+        raise ValueError("not a supported JRA public-web snapshot")
+    if manifest.get("private_use_only") is not True:
+        raise ValueError("JRA public-web snapshot is missing private-use restriction")
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, dict):
+        raise ValueError("JRA public-web manifest has no outputs")
+    contents: dict[str, bytes] = {}
+    for name in ("cards.json", "history.json", "track-conditions.json"):
+        metadata = outputs.get(name)
+        if not isinstance(metadata, dict) or not isinstance(metadata.get("sha256"), str):
+            raise ValueError(f"JRA public-web manifest is missing {name}")
+        content = (directory / name).read_bytes()
+        if hashlib.sha256(content).hexdigest() != metadata["sha256"]:
+            raise ValueError(f"JRA public-web snapshot hash mismatch: {name}")
+        contents[name] = content
+    try:
+        race_date = date.fromisoformat(manifest["race_date"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("JRA public-web manifest race_date is invalid") from error
+    manifest["_manifest_sha256"] = hashlib.sha256(manifest_content).hexdigest()
+    return manifest, race_date, contents
+
+
+def refresh_jra_web_race_day(
+    snapshot_directory: str | Path,
+    output_directory: str | Path,
+    *,
+    delay_seconds: float = 1.0,
+    accept_private_use_terms: bool = False,
+    client: JraWebClient | None = None,
+) -> JraWebFetchResult:
+    """Refetch only same-day cards and conditions while preserving history bytes.
+
+    This is intended for a second acquisition shortly before the first race so
+    body weights, scratches, odds, and track conditions are not inherited from
+    an overnight snapshot.  The historical corpus is copied byte-for-byte and
+    linked to its original manifest hash.
+    """
+    if not accept_private_use_terms:
+        raise ValueError("--accept-private-use-terms is required for JRA public-web refresh")
+    source = Path(snapshot_directory)
+    source_manifest, race_date, source_contents = _validated_snapshot_bytes(source)
+    destination = Path(output_directory)
+    if destination.exists():
+        raise FileExistsError(f"output already exists: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix=f".{destination.name}-", dir=destination.parent))
+    active_client = client or JraWebClient(delay_seconds=delay_seconds)
+    try:
+        index = active_client.post_cname(CARD_ENDPOINT, "pw01dli00/F3")
+        selections = _venue_selections(index, race_date)
+        card_params: list[str] = []
+        for venue in sorted(selections):
+            meeting = active_client.post_cname(CARD_ENDPOINT, selections[venue])
+            card_params.extend(_detail_cards(meeting, race_date).values())
+        cards = [
+            parse_card(active_client.get(f"{CARD_ENDPOINT}?CNAME={cname}"), cname)
+            for cname in sorted(set(card_params))
+        ]
+        cards.sort(key=lambda item: (item["venue"], item["race"]))
+        previous_cards = json.loads(source_contents["cards.json"].decode("utf-8"))
+        previous_races = {item["race_id"] for item in previous_cards}
+        refreshed_races = {item["race_id"] for item in cards}
+        if previous_races != refreshed_races:
+            raise ValueError(
+                "refreshed JRA cards do not match the source race set: "
+                f"missing={sorted(previous_races - refreshed_races)}, "
+                f"unexpected={sorted(refreshed_races - previous_races)}"
+            )
+
+        info = active_client.post_cname(INFO_ENDPOINT, "pw01ide01/4F")
+        conditions = parse_track_conditions(info, race_date)
+        acquired_at = datetime.now(JST)
+        outputs = {
+            "cards.json": _json_bytes(cards),
+            "history.json": source_contents["history.json"],
+            "track-conditions.json": _json_bytes(conditions),
+        }
+        for name, content in outputs.items():
+            (work / name).write_bytes(content)
+        manifest = {
+            "schema_version": "1.0",
+            "fetcher_version": REFRESHER_VERSION,
+            "source_id": SOURCE_ID,
+            "race_date": race_date.isoformat(),
+            "acquired_at": acquired_at.isoformat(),
+            "private_use_only": True,
+            "redistribution_allowed": False,
+            "request_delay_seconds": active_client.delay_seconds,
+            "race_count": len(cards),
+            "runner_count": sum(len(card["horses"]) for card in cards),
+            "history_race_count": source_manifest["history_race_count"],
+            "history_runner_count": source_manifest["history_runner_count"],
+            "source_snapshot_manifest_sha256": source_manifest["_manifest_sha256"],
+            "history_reused_without_network": True,
+            "requests": [
+                {
+                    "url": item.url, "method": item.method, "cname": item.cname,
+                    "acquired_at": item.acquired_at.isoformat(), "sha256": item.sha256,
+                    "size_bytes": item.size_bytes,
+                }
+                for item in active_client.records
+            ],
+            "outputs": {
+                name: {"sha256": hashlib.sha256(content).hexdigest(), "size_bytes": len(content)}
+                for name, content in sorted(outputs.items())
+            },
+        }
+        (work / "acquisition-manifest.json").write_bytes(_json_bytes(manifest))
+        work.rename(destination)
+    except Exception:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
+    return JraWebFetchResult(
+        destination,
+        destination / "acquisition-manifest.json",
+        destination / "cards.json",
+        destination / "history.json",
+        destination / "track-conditions.json",
+        acquired_at,
+        len(cards),
+        int(source_manifest["history_race_count"]),
     )

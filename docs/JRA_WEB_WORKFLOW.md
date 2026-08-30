@@ -38,10 +38,24 @@ keiba-lab fetch-jra-web \
 
 ## 正式入力への変換
 
+### 発走前の当日更新
+
+夜間に取得した履歴を再利用し、最初のレース前に当日の出馬表、馬体重、単勝オッズ、取消、馬場だけを再取得する。履歴は元スナップショットからバイト単位でコピーされ、元マニフェストのSHA-256も保存される。
+
+```bash
+keiba-lab refresh-jra-web-race-day \
+  local/jra-web/20260830-raw \
+  --delay-seconds 1.0 \
+  --accept-private-use-terms \
+  --output local/jra-web/20260830-morning-raw
+```
+
+更新後は夜間版ではなく`20260830-morning-raw`を正式入力へ変換する。レース集合が元スナップショットと一致しない場合、更新全体を保存せず停止する。
+
 ```bash
 keiba-lab prepare-jra-web-race-day \
-  local/jra-web/20260830-raw \
-  --output local/jra-web/20260830-prepared
+  local/jra-web/20260830-morning-raw \
+  --output local/jra-web/20260830-morning-prepared
 ```
 
 次を一括生成する。
@@ -59,10 +73,10 @@ keiba-lab prepare-jra-web-race-day \
 ## 学習・予測
 
 ```bash
-keiba-lab audit-training-csv local/jra-web/20260830-prepared/history/training.csv
+keiba-lab audit-training-csv local/jra-web/20260830-morning-prepared/history/training.csv
 
 keiba-lab train-model \
-  local/jra-web/20260830-prepared/history/training.csv \
+  local/jra-web/20260830-morning-prepared/history/training.csv \
   --output local/jra-web/20260830-model.json
 ```
 
@@ -71,11 +85,13 @@ keiba-lab train-model \
 ```bash
 keiba-lab predict-race-day \
   local/jra-web/20260830-model.json \
-  local/jra-web/20260830-prepared/history/history.csv \
-  local/jra-web/20260830-prepared/race-day-plan.json \
+  local/jra-web/20260830-morning-prepared/history/history.csv \
+  local/jra-web/20260830-morning-prepared/race-day-plan.json \
   --frozen-at 'prepared-manifest.jsonに記録されたobserved_at' \
   --output local/jra-web/20260830-predictions
 ```
+
+独立予想を固定した後、オッズをモデル入力へ混ぜずに市場乖離だけを別途監査できる。詳細は[市場乖離ガード](MARKET_GUARD.md)を参照する。
 
 取得完了時刻が対象レースの発走後なら、当該開催日全体の発走前固定は成立しないため変換を拒否する。
 
@@ -84,5 +100,7 @@ keiba-lab predict-race-day \
 - JRAのHTML構造変更に影響される。必要項目が見つからない場合は停止する
 - 出馬表に掲載される過去走を起点とするため、JRA-VANの全履歴取得と同等ではない
 - 360レース取得には通信状況により時間がかかる。2回目以降の差分キャッシュは未実装
+- 同日更新は履歴を再利用するが、別開催日の履歴を横断蓄積する機能は未実装
 - 現行17特徴量モデルとペース係数の実競馬での有効性は未検証
 - オッズは取得スナップショットへ保存するが、現行の独立予想モデル入力には使用しない
+- 市場乖離ガードは研究用影成果物であり、既定閾値の改善効果は未検証

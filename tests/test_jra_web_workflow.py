@@ -11,6 +11,8 @@ from keiba_prediction_lab.jra_web_fetch import (
     INFO_ENDPOINT,
     JraWebClient,
     fetch_jra_web_race_day,
+    parse_result,
+    refresh_jra_web_race_day,
 )
 from keiba_prediction_lab.local_adapter import load_targets_csv
 from keiba_prediction_lab.pace_estimation import load_pace_history_csv
@@ -94,6 +96,11 @@ def _transport(request, _timeout: float) -> bytes:
 
 
 class JraWebWorkflowTest(unittest.TestCase):
+    def test_result_parser_accepts_current_and_legacy_url_prefixes(self) -> None:
+        current = RESULT_URL.replace("pw01sde10", "pw01sde01")
+        self.assertEqual(parse_result(_encoded(RESULT), RESULT_URL)["race"], 1)
+        self.assertEqual(parse_result(_encoded(RESULT), current)["race"], 1)
+
     def test_requires_explicit_private_use_acknowledgement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "accept-private-use"):
@@ -188,6 +195,60 @@ class JraWebWorkflowTest(unittest.TestCase):
         self.assertEqual(result["pace_history_row_count"], 0)
         self.assertEqual(scenario["expected_pace"], "average")
         self.assertEqual(scenario["confidence"], 0.0)
+
+    def test_refresh_reuses_history_and_updates_same_day_inputs(self) -> None:
+        refreshed_card = CARD.replace("480kg", "488kg").replace(
+            "<strong>2.5</strong>", "<strong>3.2</strong>"
+        )
+        refreshed_info = INFO.replace(
+            '<span class="main">良</span>',
+            '<span class="main">重</span>',
+            1,
+        )
+
+        def refresh_transport(request, timeout: float) -> bytes:
+            cname = None
+            if request.data:
+                cname = parse_qs(request.data.decode("ascii"))["CNAME"][0]
+            if request.full_url == f"{CARD_ENDPOINT}?CNAME={CARD_CNAME}":
+                return _encoded(refreshed_card)
+            if request.full_url == INFO_ENDPOINT and cname == "pw01ide01/4F":
+                return _encoded(refreshed_info)
+            return _transport(request, timeout)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            raw = root / "raw"
+            fetch_jra_web_race_day(
+                RACE_DATE,
+                raw,
+                max_history_races=1,
+                accept_private_use_terms=True,
+                client=JraWebClient(delay_seconds=0, transport=_transport),
+            )
+            original_history = (raw / "history.json").read_bytes()
+            refreshed = root / "refreshed"
+            result = refresh_jra_web_race_day(
+                raw,
+                refreshed,
+                accept_private_use_terms=True,
+                client=JraWebClient(delay_seconds=0, transport=refresh_transport),
+            )
+            refreshed_history = result.history_path.read_bytes()
+            manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+            prepared = root / "prepared-refreshed"
+            prepare_jra_web_race_day(refreshed, prepared)
+            targets = load_targets_csv(
+                prepared / "targets" / "targets" / "20990102-東京-01.csv"
+            )
+
+        self.assertEqual(result.race_count, 1)
+        self.assertEqual(result.history_race_count, 1)
+        self.assertEqual(original_history, refreshed_history)
+        self.assertTrue(manifest["history_reused_without_network"])
+        self.assertEqual(len(manifest["source_snapshot_manifest_sha256"]), 64)
+        self.assertEqual(targets[0].body_weight_kg, 488)
+        self.assertEqual(targets[0].track_condition, "重")
 
 
 if __name__ == "__main__":
