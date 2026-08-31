@@ -87,9 +87,18 @@ class Win5AppSnapshot:
 
 
 @dataclass(frozen=True)
+class RunnerDisplayAppSnapshot:
+    horse_id: str
+    horse_number: int
+    horse_name: str
+    frame_number: int
+
+
+@dataclass(frozen=True)
 class RaceDayRaceAppSnapshot:
     race_number: int
     prediction: PredictionAppSnapshot
+    runner_display: tuple[RunnerDisplayAppSnapshot, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -271,8 +280,10 @@ def _race_day_snapshot(path: str | Path) -> RaceDayAppSnapshot:
         races: list[RaceDayRaceAppSnapshot] = []
         seen_numbers: set[int] = set()
         for raw_race in raw_races:
-            if not isinstance(raw_race, dict) or set(raw_race) != {
+            if not isinstance(raw_race, dict) or not {
                 "race_number", "prediction_bundle"
+            } <= set(raw_race) or set(raw_race) - {
+                "race_number", "prediction_bundle", "runner_display"
             }:
                 raise ValueError("invalid race-day race entry")
             race_number = raw_race["race_number"]
@@ -287,12 +298,46 @@ def _race_day_snapshot(path: str | Path) -> RaceDayAppSnapshot:
             if not resolved.is_absolute():
                 resolved = manifest_path.parent / resolved
             prediction = _prediction_snapshot(resolved)
+            raw_display = raw_race.get("runner_display", [])
+            if not isinstance(raw_display, list):
+                raise ValueError("runner_display must be a list")
+            runner_ids = {runner.horse_id for runner in prediction.runners}
+            display: list[RunnerDisplayAppSnapshot] = []
+            display_ids: set[str] = set()
+            horse_numbers: set[int] = set()
+            for item in raw_display:
+                if not isinstance(item, dict) or set(item) != {
+                    "horse_id", "horse_number", "horse_name", "frame_number"
+                }:
+                    raise ValueError("invalid runner_display entry")
+                horse_id = item["horse_id"]
+                horse_number = item["horse_number"]
+                horse_name = item["horse_name"]
+                frame_number = item["frame_number"]
+                normalized_horse_id = horse_id.strip() if isinstance(horse_id, str) else ""
+                if not normalized_horse_id or normalized_horse_id not in runner_ids:
+                    raise ValueError("runner_display horse_id must identify a predicted runner")
+                if normalized_horse_id in display_ids:
+                    raise ValueError("runner_display horse_id values must be unique")
+                if type(horse_number) is not int or not 1 <= horse_number <= 18:
+                    raise ValueError("horse_number must be an integer from 1 to 18")
+                if horse_number in horse_numbers:
+                    raise ValueError("runner_display horse_number values must be unique")
+                if not isinstance(horse_name, str) or not horse_name.strip():
+                    raise ValueError("horse_name must be non-empty")
+                if type(frame_number) is not int or not 1 <= frame_number <= 8:
+                    raise ValueError("frame_number must be an integer from 1 to 8")
+                display.append(RunnerDisplayAppSnapshot(
+                    normalized_horse_id, horse_number, horse_name.strip(), frame_number
+                ))
+                display_ids.add(normalized_horse_id)
+                horse_numbers.add(horse_number)
             scheduled_date = date.fromisoformat(prediction.scheduled_at[:10])
             if scheduled_date != race_date:
                 raise ValueError("race-day bundle date does not match race_date")
             if prediction.race_id in seen_race_ids:
                 raise ValueError("race-day bundles must have unique race_id values")
-            races.append(RaceDayRaceAppSnapshot(race_number, prediction))
+            races.append(RaceDayRaceAppSnapshot(race_number, prediction, tuple(display)))
             seen_numbers.add(race_number)
             seen_race_ids.add(prediction.race_id)
         venues.append(RaceDayVenueAppSnapshot(
@@ -443,6 +488,15 @@ def _race_day_dict(value: RaceDayAppSnapshot | None) -> object:
                     {
                         "race_number": race.race_number,
                         "prediction": _prediction_dict(race.prediction),
+                        "runner_display": [
+                            {
+                                "horse_id": row.horse_id,
+                                "horse_number": row.horse_number,
+                                "horse_name": row.horse_name,
+                                "frame_number": row.frame_number,
+                            }
+                            for row in race.runner_display
+                        ],
                     }
                     for race in venue.races
                 ],

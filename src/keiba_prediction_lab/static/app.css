@@ -33,7 +33,7 @@ button, table { font: inherit; }
 .state-message.error { border: 1px solid #e45d5d; border-radius: 7px; color: #a82424; background: #fff7f7; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .dashboard { min-height: calc(100vh - 68px); padding: 16px 22px 12px; background: #fff; }
-.dashboard-toolbar { display: grid; grid-template-columns: 280px 330px minmax(0, 1fr); align-items: stretch; min-height: 102px; }
+.dashboard-toolbar { display: grid; grid-template-columns: 280px minmax(330px, 1fr); align-items: stretch; min-height: 102px; }
 .date-block, .venue-picker { padding: 10px 20px 10px 0; border-right: 1px solid #d3dbe7; }
 .venue-picker { padding-left: 22px; }
 .date-block > span, .venue-picker > span { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 750; }
@@ -44,8 +44,6 @@ button, table { font: inherit; }
 .venue-tab:last-child { border-radius: 0 6px 6px 0; }
 .venue-tab[aria-selected="true"] { border-color: #062658; color: #fff; background: #062658; }
 .venue-tab:focus-visible, .ledger-row:focus-visible { outline: 3px solid #79a8ff; outline-offset: 1px; }
-.dashboard-featured { display: grid; grid-template-columns: minmax(250px, 1fr) auto; align-items: center; gap: 22px; margin-left: 46px; padding: 16px 20px; border: 1px solid #ff6969; border-radius: 7px; color: #f04444; background: #fffafa; }
-.dashboard-featured > span { font-size: 17px; font-weight: 750; }
 .compact-ticket { display: flex; align-items: center; gap: 18px; white-space: nowrap; }
 .compact-number { min-width: 39px; padding: 5px 8px; border: 1px solid #ff7070; border-radius: 4px; color: #f04444; background: #fff; text-align: center; font-weight: 800; }
 .compact-arrow { color: #24354d; font-size: 20px; }
@@ -61,6 +59,14 @@ button, table { font: inherit; }
 .ledger-winner { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .ledger-winner strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .winner-mark { min-width: 30px; padding: 4px 7px; border-radius: 4px; color: #fff; background: #062658; text-align: center; }
+.winner-mark.frame-1 { border: 1px solid #9ca7b5; color: #14243b; background: #fff; }
+.winner-mark.frame-2 { color: #fff; background: #171717; }
+.winner-mark.frame-3 { color: #fff; background: #e53935; }
+.winner-mark.frame-4 { color: #fff; background: #1769c2; }
+.winner-mark.frame-5 { color: #17233a; background: #f4d318; }
+.winner-mark.frame-6 { color: #fff; background: #27944f; }
+.winner-mark.frame-7 { color: #17233a; background: #ee9417; }
+.winner-mark.frame-8 { color: #17233a; background: #ed7294; }
 .ledger-probability { color: #175ac2; font-size: 16px; font-variant-numeric: tabular-nums; }
 .ledger-ticket .compact-number { min-width: 34px; padding: 3px 6px; }
 .detail-link { color: #175ac2; font-weight: 700; text-align: right; }

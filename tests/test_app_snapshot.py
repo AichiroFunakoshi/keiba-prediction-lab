@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime
 from pathlib import Path
 
@@ -52,6 +53,12 @@ def _race_day_manifest(root: Path, prediction: Path) -> Path:
             "races": [{
                 "race_number": 1,
                 "prediction_bundle": str(prediction),
+                "runner_display": [{
+                    "horse_id": "horse-1",
+                    "horse_number": 5,
+                    "horse_name": "サクラエンパイア",
+                    "frame_number": 3,
+                }],
             }],
         }],
     }), encoding="utf-8")
@@ -101,6 +108,10 @@ class ReadOnlyAppSnapshotTest(unittest.TestCase):
         self.assertEqual(
             payload["race_day"]["venues"][0]["races"][0]["race_number"], 1
         )
+        display = payload["race_day"]["venues"][0]["races"][0]["runner_display"][0]
+        self.assertEqual(display["horse_number"], 5)
+        self.assertEqual(display["horse_name"], "サクラエンパイア")
+        self.assertEqual(display["frame_number"], 3)
         self.assertEqual(before_prediction, after_prediction)
         self.assertEqual(before_walk_forward, after_walk_forward)
 
@@ -198,6 +209,68 @@ class ReadOnlyAppSnapshotTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duplicate key"):
                 build_read_only_app_snapshot(race_day_manifest=manifest)
 
+    def test_rejects_invalid_runner_display_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prediction = _saved_bundle(root)
+            manifest = _race_day_manifest(root, prediction)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            display = payload["venues"][0]["races"][0]["runner_display"]
+
+            display[0]["horse_id"] = "unknown"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "predicted runner"):
+                build_read_only_app_snapshot(race_day_manifest=manifest)
+
+            display[0]["horse_id"] = "horse-1"
+            display[0]["frame_number"] = 9
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "frame_number"):
+                build_read_only_app_snapshot(race_day_manifest=manifest)
+
+    def test_preserves_every_configured_venue(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prediction = _saved_bundle(root)
+            manifest = _race_day_manifest(root, prediction)
+            original = build_read_only_app_snapshot(
+                race_day_manifest=manifest
+            ).race_day.venues[0].races[0].prediction
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            template = payload["venues"][0]
+            payload["venues"] = [
+                {"venue": venue, "races": [{
+                    **template["races"][0],
+                    "prediction_bundle": f"bundle-{index}",
+                }]}
+                for index, venue in enumerate(("新潟", "中京", "札幌"), start=1)
+            ]
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            predictions = [
+                original.__class__(
+                    race_id=f"race-{index}",
+                    scheduled_at=original.scheduled_at,
+                    frozen_at=original.frozen_at,
+                    model_version=original.model_version,
+                    input_data_version=original.input_data_version,
+                    runners=original.runners,
+                    actual_selection=original.actual_selection,
+                    actual_stake_yen=original.actual_stake_yen,
+                    shadow_portfolios=original.shadow_portfolios,
+                    bet_type_candidates=original.bet_type_candidates,
+                )
+                for index in range(1, 4)
+            ]
+            with patch(
+                "keiba_prediction_lab.app_snapshot._prediction_snapshot",
+                side_effect=predictions,
+            ):
+                snapshot = build_read_only_app_snapshot(race_day_manifest=manifest)
+
+        self.assertEqual(
+            [venue.venue for venue in snapshot.race_day.venues],
+            ["新潟", "中京", "札幌"],
+        )
 
 if __name__ == "__main__":
     unittest.main()
