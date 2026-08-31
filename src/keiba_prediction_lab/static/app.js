@@ -111,11 +111,16 @@ function renderPrediction(prediction) {
   renderShadows(prediction);
 }
 
-function compactTicket(selection, target) {
+function compactTicket(selection, target, displayById = new Map()) {
   target.replaceChildren();
   selection.forEach((horseId, index) => {
     if (index > 0) target.append(node("span", "compact-arrow", "→"));
-    target.append(node("span", "compact-number", horseId));
+    const display = displayById.get(horseId);
+    const number = node("span", "compact-number", display ? String(display.horse_number) : horseId);
+    if (display) {
+      number.title = `${display.horse_name}（馬ID: ${horseId}）`;
+    }
+    target.append(number);
   });
 }
 
@@ -140,6 +145,10 @@ function renderVenue(raceDay, venueIndex) {
   venue.races.forEach((race) => {
     const prediction = race.prediction;
     const winner = prediction.runners[0];
+    const displayById = new Map(
+      (race.runner_display || []).map((item) => [item.horse_id, item])
+    );
+    const winnerDisplay = displayById.get(winner.horse_id);
     const row = node("button", "ledger-row");
     row.type = "button";
     row.setAttribute("aria-label", `${venue.venue} ${race.race_number}Rの詳細を見る`);
@@ -148,24 +157,24 @@ function renderVenue(raceDay, venueIndex) {
       hour: "2-digit", minute: "2-digit"
     }).format(new Date(prediction.scheduled_at))));
     const winnerCell = node("span", "ledger-winner");
-    winnerCell.append(node("b", "winner-mark", `${winner.predicted_rank}位`));
-    winnerCell.append(node("strong", "", winner.horse_id));
+    const winnerMark = node(
+      "b", winnerDisplay ? `winner-mark frame-${winnerDisplay.frame_number}` : "winner-mark",
+      winnerDisplay ? String(winnerDisplay.horse_number) : `${winner.predicted_rank}位`
+    );
+    winnerCell.append(winnerMark);
+    const winnerName = node("strong", "", winnerDisplay?.horse_name || winner.horse_id);
+    if (winnerDisplay) winnerName.title = `馬ID: ${winner.horse_id}`;
+    winnerCell.append(winnerName);
     row.append(winnerCell);
     row.append(node("b", "ledger-probability", percent(winner.win_probability)));
     const ticket = node("span", "compact-ticket ledger-ticket");
-    compactTicket(prediction.actual.selection, ticket);
+    compactTicket(prediction.actual.selection, ticket, displayById);
     row.append(ticket);
     const detail = node("span", "detail-link", "詳細を見る");
     row.append(detail);
     row.addEventListener("click", () => showDetail(prediction));
     rows.append(row);
   });
-  if (venue.races.length) {
-    compactTicket(
-      venue.races[0].prediction.actual.selection,
-      byId("dashboard-featured-ticket")
-    );
-  }
 }
 
 function renderDashboard(raceDay) {
