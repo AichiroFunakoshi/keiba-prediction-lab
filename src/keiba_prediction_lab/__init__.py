@@ -289,6 +289,11 @@ from .win5 import (
     load_win5_forecast,
     save_win5_forecast,
 )
+from .winner_diagnostics import (
+    WinnerMissRace,
+    WinnerMissReport,
+    diagnose_winner_misses,
+)
 
 __all__ = [
     "AuditedPredictionBundle",
@@ -407,6 +412,8 @@ __all__ = [
     "WalkForwardAppSnapshot",
     "Win5AppSnapshot",
     "Win5LegAppSnapshot",
+    "WinnerMissRace",
+    "WinnerMissReport",
     "WALK_FORWARD_ARTIFACT_SCHEMA_VERSION",
     "SourceStatus",
     "TARGET_COLUMNS",
@@ -450,6 +457,7 @@ __all__ = [
     "diagnose_bet_type_segments",
     "compare_trifecta_generators",
     "diagnose_segments",
+    "diagnose_winner_misses",
     "evaluate_fixed_stake",
     "evaluate_local_walk_forward",
     "evaluate_bet_type_race_directories",

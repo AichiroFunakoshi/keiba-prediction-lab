@@ -53,6 +53,7 @@ from .walk_forward_report import (
     save_walk_forward_artifact,
 )
 from .win5 import build_win5_forecast, load_win5_forecast, save_win5_forecast
+from .winner_diagnostics import diagnose_winner_misses
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -205,10 +206,20 @@ def _build_parser() -> argparse.ArgumentParser:
             "bet-types-payouts.json"
         ),
     )
+
     evaluate.add_argument(
         "--report",
         type=Path,
         help="save an integrity-protected structured evaluation JSON",
+    )
+
+    winner_diagnostics = subparsers.add_parser(
+        "diagnose-winner-misses",
+        help="diagnose top-one errors from audited race directories",
+    )
+    winner_diagnostics.add_argument("race_directories", type=Path, nargs="+")
+    winner_diagnostics.add_argument(
+        "--format", choices=("markdown", "json"), default="markdown"
     )
 
     compare = subparsers.add_parser(
@@ -282,6 +293,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.report is not None:
             save_bet_type_evaluation_artifact(artifact, args.report)
         print(artifact.to_markdown(), end="")
+        return 0
+
+    if args.command == "diagnose-winner-misses":
+        report = diagnose_winner_misses(tuple(args.race_directories))
+        if args.format == "json":
+            print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            print(report.to_markdown(), end="")
         return 0
 
     if args.command == "prepare-features":
