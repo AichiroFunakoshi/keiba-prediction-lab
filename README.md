@@ -221,6 +221,8 @@ python -m keiba_prediction_lab.cli diagnose-winner-misses \
 
 この診断は係数を自動更新しません。少数の直近結果は改善仮説の材料に限り、モデル変更は固定したウォークフォワード期間で別途検証します。
 
+別のMacにGitHub非公開の予測・結果が残っている場合は、[ローカル成果物復旧手順](docs/LOCAL_RESULT_RECOVERY.md)に従い、その端末で探索、監査、対応付け、診断を行います。実データはGitHubへ追加しません。
+
 ```bash
 python -m keiba_prediction_lab.cli evaluate-bet-types \
   outputs/race-1 outputs/race-2 \
