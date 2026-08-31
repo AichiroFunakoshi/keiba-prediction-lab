@@ -212,6 +212,15 @@ python -m keiba_prediction_lab.cli serve-read-only-api \
 
 結果・払戻・レース条件は、発走前予測を変更せず別ファイルとして追加します。
 
+1着的中率を改善する前に、監査済み予測と`bet-types-payouts.json`から外れ方を診断します。実勝馬が予測2位だった僅差の外れと、予測上位3頭にも入らなかった外れ、高信頼での外れを分離します。
+
+```bash
+python -m keiba_prediction_lab.cli diagnose-winner-misses \
+  outputs/race-1 outputs/race-2 --format markdown
+```
+
+この診断は係数を自動更新しません。少数の直近結果は改善仮説の材料に限り、モデル変更は固定したウォークフォワード期間で別途検証します。
+
 ```bash
 python -m keiba_prediction_lab.cli evaluate-bet-types \
   outputs/race-1 outputs/race-2 \
