@@ -61,6 +61,8 @@ class WalkForwardReportTest(unittest.TestCase):
             with contextlib.redirect_stdout(stdout):
                 exit_code = main([
                     "evaluate-walk-forward", str(training), str(windows),
+                    "--min-evaluation-races", "4",
+                    "--max-evaluation-races", "4",
                     "--report", str(report),
                 ])
             envelope = json.loads(report.read_text(encoding="utf-8"))
@@ -195,6 +197,45 @@ class WalkForwardReportTest(unittest.TestCase):
 
         self.assertEqual(exit_code, 1)
         self.assertIn("must not overlap", stdout.getvalue())
+
+    def test_cli_enforces_fixed_evaluation_race_range_before_saving(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            windows = root / "windows.json"
+            report = root / "report.json"
+            _training(training)
+            _windows(windows)
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "evaluate-walk-forward", str(training), str(windows),
+                    "--min-evaluation-races", "300",
+                    "--max-evaluation-races", "500",
+                    "--report", str(report),
+                ])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("evaluation has 4 races", stdout.getvalue())
+        self.assertFalse(report.exists())
+
+    def test_cli_rejects_invalid_evaluation_race_range(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            windows = root / "windows.json"
+            _training(training)
+            _windows(windows)
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "evaluate-walk-forward", str(training), str(windows),
+                    "--min-evaluation-races", "500",
+                    "--max-evaluation-races", "300",
+                ])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("must not exceed maximum", stdout.getvalue())
 
 
 if __name__ == "__main__":
