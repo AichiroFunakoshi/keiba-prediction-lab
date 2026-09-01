@@ -15,16 +15,25 @@ function node(tag, className, text) {
   return element;
 }
 
-function renderTicket(prediction) {
+function runnerDisplayMap(runnerDisplay = []) {
+  return new Map(runnerDisplay.map((item) => [item.horse_id, item]));
+}
+
+function renderTicket(prediction, displayById) {
   const selection = byId("official-selection");
   selection.replaceChildren();
   prediction.actual.selection.forEach((horseId, index) => {
     if (index > 0) selection.append(node("span", "ticket-arrow", "→"));
-    selection.append(node("span", "ticket-number", horseId));
+    const display = displayById.get(horseId);
+    const number = node(
+      "span", "ticket-number", display ? String(display.horse_number) : horseId
+    );
+    if (display) number.title = `${display.horse_name}（馬ID: ${horseId}）`;
+    selection.append(number);
   });
 }
 
-function renderRanking(prediction) {
+function renderRanking(prediction, displayById) {
   const body = byId("ranking-body");
   body.replaceChildren();
   const visibleRunners = prediction.runners.slice(0, 8);
@@ -32,11 +41,22 @@ function renderRanking(prediction) {
     ? `全${prediction.runners.length}頭中、1着確率上位8頭を表示`
     : `全${prediction.runners.length}頭`;
   visibleRunners.forEach((runner) => {
+    const display = displayById.get(runner.horse_id);
     const row = document.createElement("tr");
     const rank = document.createElement("td");
     rank.append(node("span", "rank-pill", String(runner.predicted_rank)));
     row.append(rank);
-    row.append(node("td", "", runner.horse_id));
+    const horseNumber = node(
+      "span",
+      display ? `runner-number frame-${display.frame_number}` : "runner-number",
+      display ? String(display.horse_number) : "—"
+    );
+    const horseNumberCell = document.createElement("td");
+    horseNumberCell.append(horseNumber);
+    row.append(horseNumberCell);
+    const horseName = node("td", "runner-name", display?.horse_name || runner.horse_id);
+    if (display) horseName.title = `馬ID: ${runner.horse_id}`;
+    row.append(horseName);
     row.append(node("td", "probability", percent(runner.win_probability)));
     row.append(node("td", "probability", percent(runner.top3_probability)));
     body.append(row);
@@ -88,7 +108,7 @@ function renderShadows(prediction) {
   }
 }
 
-function renderPrediction(prediction) {
+function renderPrediction(prediction, runnerDisplay = []) {
   if (!prediction) {
     byId("prediction-view").hidden = true;
     byId("empty-prediction").hidden = false;
@@ -102,12 +122,20 @@ function renderPrediction(prediction) {
   byId("context-frozen").textContent = dateTime(prediction.frozen_at);
   byId("context-model").textContent = prediction.model_version;
   byId("context-input").textContent = prediction.input_data_version;
-  renderTicket(prediction);
+  const displayById = runnerDisplayMap(runnerDisplay);
+  renderTicket(prediction, displayById);
   const winner = prediction.runners[0];
-  byId("winner-number").textContent = winner.predicted_rank;
-  byId("winner-id").textContent = winner.horse_id;
+  const winnerDisplay = displayById.get(winner.horse_id);
+  const winnerNumber = byId("winner-number");
+  winnerNumber.className = winnerDisplay
+    ? `horse-number frame-${winnerDisplay.frame_number}`
+    : "horse-number";
+  winnerNumber.textContent = winnerDisplay ? winnerDisplay.horse_number : winner.predicted_rank;
+  byId("winner-label").textContent = winnerDisplay ? "予測1位の馬" : "予測1位の馬ID";
+  byId("winner-id").textContent = winnerDisplay?.horse_name || winner.horse_id;
+  byId("winner-id").title = winnerDisplay ? `馬ID: ${winner.horse_id}` : "";
   byId("winner-probability").textContent = percent(winner.win_probability);
-  renderRanking(prediction);
+  renderRanking(prediction, displayById);
   renderShadows(prediction);
 }
 
@@ -124,11 +152,11 @@ function compactTicket(selection, target, displayById = new Map()) {
   });
 }
 
-function showDetail(prediction) {
+function showDetail(prediction, runnerDisplay = []) {
   byId("dashboard").hidden = true;
   byId("detail-app").hidden = false;
   byId("back-overview").hidden = !currentState?.race_day;
-  renderPrediction(prediction);
+  renderPrediction(prediction, runnerDisplay);
   renderValidation(currentState?.walk_forward || null);
   window.scrollTo(0, 0);
 }
@@ -139,15 +167,14 @@ function renderVenue(raceDay, venueIndex) {
   byId("race-title").textContent = `${venue.venue} 全レース`;
   byId("venue-tabs").querySelectorAll("button").forEach((button, index) => {
     button.setAttribute("aria-selected", String(index === venueIndex));
+    button.tabIndex = index === venueIndex ? 0 : -1;
   });
   const rows = byId("race-rows");
   rows.replaceChildren();
   venue.races.forEach((race) => {
     const prediction = race.prediction;
     const winner = prediction.runners[0];
-    const displayById = new Map(
-      (race.runner_display || []).map((item) => [item.horse_id, item])
-    );
+    const displayById = runnerDisplayMap(race.runner_display || []);
     const winnerDisplay = displayById.get(winner.horse_id);
     const row = node("button", "ledger-row");
     row.type = "button";
@@ -172,7 +199,9 @@ function renderVenue(raceDay, venueIndex) {
     row.append(ticket);
     const detail = node("span", "detail-link", "詳細を見る");
     row.append(detail);
-    row.addEventListener("click", () => showDetail(prediction));
+    row.addEventListener("click", () => {
+      showDetail(prediction, race.runner_display || []);
+    });
     rows.append(row);
   });
 }
@@ -193,7 +222,20 @@ function renderDashboard(raceDay) {
     const tab = node("button", "venue-tab", venue.venue);
     tab.type = "button";
     tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", "race-ledger");
     tab.addEventListener("click", () => renderVenue(raceDay, index));
+    tab.addEventListener("keydown", (event) => {
+      const lastIndex = raceDay.venues.length - 1;
+      let nextIndex = null;
+      if (event.key === "ArrowLeft") nextIndex = index === 0 ? lastIndex : index - 1;
+      if (event.key === "ArrowRight") nextIndex = index === lastIndex ? 0 : index + 1;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = lastIndex;
+      if (nextIndex === null) return;
+      event.preventDefault();
+      renderVenue(raceDay, nextIndex);
+      tabs.children[nextIndex].focus();
+    });
     tabs.append(tab);
   });
   renderVenue(raceDay, Math.min(selectedVenueIndex, raceDay.venues.length - 1));
@@ -219,7 +261,17 @@ function renderValidation(walkForward) {
   byId("metric-ece").textContent = walkForward.expected_calibration_error.toFixed(3);
 }
 
-function renderWin5(win5) {
+function findRunnerDisplay(raceDay, raceId, horseId) {
+  if (!raceDay) return null;
+  for (const venue of raceDay.venues) {
+    const race = venue.races.find((item) => item.prediction.race_id === raceId);
+    if (!race) continue;
+    return (race.runner_display || []).find((item) => item.horse_id === horseId) || null;
+  }
+  return null;
+}
+
+function renderWin5(win5, raceDay = null) {
   const section = byId("win5");
   section.hidden = !win5;
   if (!win5) return;
@@ -228,7 +280,18 @@ function renderWin5(win5) {
   win5.legs.forEach((leg, index) => {
     const item = node("article", "win5-leg");
     item.append(node("span", "win5-leg-number", `対象${index + 1}`));
-    item.append(node("strong", "", leg.selected_horse_id));
+    const display = findRunnerDisplay(raceDay, leg.race_id, leg.selected_horse_id);
+    const selection = node("div", "win5-selection");
+    if (display) {
+      selection.append(node(
+        "span", `winner-mark frame-${display.frame_number}`,
+        String(display.horse_number)
+      ));
+    }
+    const horseName = node("strong", "", display?.horse_name || leg.selected_horse_id);
+    if (display) horseName.title = `馬ID: ${leg.selected_horse_id}`;
+    selection.append(horseName);
+    item.append(selection);
     item.append(node("small", "", leg.race_id));
     item.append(node("b", "", percent(leg.selected_win_probability)));
     legs.append(item);
@@ -250,7 +313,7 @@ async function loadState() {
     byId("context-policy").textContent = state.actual_purchase_policy;
     if (state.race_day) {
       renderDashboard(state.race_day);
-      renderWin5(state.win5);
+      renderWin5(state.win5, state.race_day);
     } else if (state.prediction) {
       showDetail(state.prediction);
     } else if (state.win5) {

@@ -102,6 +102,10 @@ class LocalReadOnlyHttpTest(unittest.TestCase):
         self.assertIn(b'/api/v1/state', script)
         self.assertIn(b'renderWin5', script)
         self.assertIn(b'renderDashboard', script)
+        self.assertIn(b'runnerDisplayMap', script)
+        self.assertIn(b'winnerDisplay.horse_number', script)
+        self.assertIn(b'event.key === "ArrowRight"', script)
+        self.assertIn(b'findRunnerDisplay', script)
 
     def test_rejects_mutating_methods_and_unknown_routes(self) -> None:
         post_status, post_headers, post = self._request("POST", "/api/v1/state")
