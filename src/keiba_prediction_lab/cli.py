@@ -48,6 +48,10 @@ from .local_pipeline import (
     save_local_pipeline_run,
 )
 from .local_http import DEFAULT_READ_ONLY_API_PORT, serve_read_only_api
+from .local_artifact_status import (
+    default_local_artifact_roots,
+    inspect_local_artifacts,
+)
 from .market_guard import (
     MarketGuardPolicy,
     build_market_guard_report_from_snapshot,
@@ -312,6 +316,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     audit_bundle.add_argument("directory", type=Path)
 
+    local_status = subparsers.add_parser(
+        "local-artifact-status",
+        help="find and audit local prediction/results without modifying them",
+    )
+    local_status.add_argument(
+        "--root", type=Path, action="append",
+        help="search only this directory; repeat to add roots",
+    )
+
     prediction_report = subparsers.add_parser(
         "report-prediction-bundle",
         help="render an audited saved prediction as Japanese Markdown",
@@ -504,6 +517,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             }),
             "is_valid": True,
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "local-artifact-status":
+        roots = (
+            tuple(args.root)
+            if args.root
+            else default_local_artifact_roots(Path.cwd())
+        )
+        try:
+            report = inspect_local_artifacts(roots)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "diagnose-winner-misses":
