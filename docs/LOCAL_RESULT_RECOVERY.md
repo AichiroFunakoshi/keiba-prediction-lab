@@ -8,12 +8,26 @@ GitHubはコードと仕様の正である。ローカル成果物は評価の�
 
 ## 自動探索の順序
 
-エージェントは、次の順で読み取り専用確認を行う。
+最新版へ同期した直後は、まず次の読み取り専用コマンドを実行する。
+
+```bash
+keiba-lab local-artifact-status
+```
+
+保存場所が分かっている場合は探索範囲を明示できる。`--root`は複数回指定できる。
+
+```bash
+keiba-lab local-artifact-status --root /path/to/keiba-project
+```
+
+出力の`status`が`ready_for_evaluation`なら、監査済み予測と整合する払戻表が1件以上ある。`predictions_found`は正式予測のみ、`invalid_candidates_only`は候補が監査不合格、`no_candidates`は限定範囲内に候補がないことを表す。このコマンドは探索と監査だけを行い、ファイルの作成、修復、移動、Git追加、評価を行わない。
+
+既定コマンドは、次の順で読み取り専用確認を行う。
 
 1. 現在のリポジトリの`local/`、`outputs/`、`reports/`、`artifacts/`、`models/`
-2. 現在のリポジトリの親ディレクトリ
+2. 現在のリポジトリの親にある、名前に`keiba`、`競馬`、`racing`を含むフォルダ
 3. `$HOME/keiba-prediction-lab`と`$HOME/競馬`
-4. `$HOME/Documents`と`$HOME/Desktop`内の競馬プロジェクト候補
+4. `$HOME/Documents`と`$HOME/Desktop`直下の競馬プロジェクト候補
 
 探索対象は、予測バンドルを識別する次のファイル名に限定する。
 
