@@ -97,6 +97,8 @@ python -m keiba_prediction_lab.cli train-model local/training.csv --output local
 ```bash
 python -m keiba_prediction_lab.cli evaluate-walk-forward \
   local/training.csv local/windows.json \
+  --min-evaluation-races 300 \
+  --max-evaluation-races 500 \
   --report reports/walk-forward.json
 python -m keiba_prediction_lab.cli audit-walk-forward-report \
   reports/walk-forward.json

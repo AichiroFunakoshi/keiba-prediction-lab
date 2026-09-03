@@ -48,6 +48,8 @@ from .model_artifact import (
 )
 from .prediction_report import build_prediction_bundle_markdown
 from .walk_forward_report import (
+    MAX_FORMAL_EVALUATION_RACES,
+    MIN_FORMAL_EVALUATION_RACES,
     audit_walk_forward_artifact,
     evaluate_local_walk_forward,
     save_walk_forward_artifact,
@@ -167,6 +169,14 @@ def _build_parser() -> argparse.ArgumentParser:
     walk_forward.add_argument("training", type=Path)
     walk_forward.add_argument("windows", type=Path)
     walk_forward.add_argument("--report", type=Path)
+    walk_forward.add_argument(
+        "--min-evaluation-races", type=int,
+        default=MIN_FORMAL_EVALUATION_RACES,
+    )
+    walk_forward.add_argument(
+        "--max-evaluation-races", type=int,
+        default=MAX_FORMAL_EVALUATION_RACES,
+    )
 
     audit_walk_forward = subparsers.add_parser(
         "audit-walk-forward-report",
@@ -498,7 +508,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "evaluate-walk-forward":
         try:
+            if args.min_evaluation_races < MIN_FORMAL_EVALUATION_RACES:
+                raise ValueError("minimum evaluation races must be at least 300")
+            if args.max_evaluation_races > MAX_FORMAL_EVALUATION_RACES:
+                raise ValueError("maximum evaluation races must be at most 500")
+            if args.min_evaluation_races > args.max_evaluation_races:
+                raise ValueError(
+                    "minimum evaluation races must not exceed maximum"
+                )
             artifact = evaluate_local_walk_forward(args.training, args.windows)
+            evaluation_races = artifact.result.aggregate_model_score.race_count
+            if evaluation_races < args.min_evaluation_races:
+                raise ValueError(
+                    f"evaluation has {evaluation_races} races; "
+                    f"at least {args.min_evaluation_races} are required"
+                )
+            if evaluation_races > args.max_evaluation_races:
+                raise ValueError(
+                    f"evaluation has {evaluation_races} races; "
+                    f"at most {args.max_evaluation_races} are allowed"
+                )
             if args.report is not None:
                 save_walk_forward_artifact(artifact, args.report)
         except (OSError, ValueError, UnicodeError) as error:
