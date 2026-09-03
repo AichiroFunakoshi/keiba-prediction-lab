@@ -7,6 +7,7 @@ from pathlib import Path
 
 from keiba_prediction_lab.app_snapshot import build_read_only_app_snapshot
 from keiba_prediction_lab.cli import main
+from keiba_prediction_lab.race_day_pipeline import audit_local_race_day
 from keiba_prediction_lab.ui_demo import create_ui_demo, load_ui_demo
 
 
@@ -23,6 +24,10 @@ class UiDemoTest(unittest.TestCase):
             walk_forward = json.loads(
                 demo.walk_forward_report.read_text(encoding="utf-8")
             )
+            race_day_audit = audit_local_race_day(output)
+            provenance_exists = (
+                output / "race-day-provenance.json"
+            ).is_file()
 
         self.assertEqual(demo.race_count, 12)
         self.assertIsNotNone(snapshot.race_day)
@@ -32,6 +37,8 @@ class UiDemoTest(unittest.TestCase):
             walk_forward["payload"]["aggregate_model_score"]["race_count"],
             300,
         )
+        self.assertEqual(race_day_audit.race_count, 12)
+        self.assertTrue(provenance_exists)
         self.assertIn("実レースの予想", notice)
 
     def test_preserves_existing_output(self) -> None:

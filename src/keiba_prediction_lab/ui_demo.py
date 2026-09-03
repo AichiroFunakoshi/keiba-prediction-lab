@@ -11,16 +11,13 @@ from zoneinfo import ZoneInfo
 
 from .app_snapshot import build_read_only_app_snapshot
 from .local_adapter import HISTORY_COLUMNS, TARGET_COLUMNS, TRAINING_COLUMNS
-from .local_pipeline import (
-    PACE_PROFILE_COLUMNS,
-    build_local_race_prediction,
-    save_local_pipeline_run,
-)
+from .local_pipeline import PACE_PROFILE_COLUMNS
 from .model_artifact import (
     ModelTrainingParameters,
     save_trained_model_artifact,
     train_local_model_artifact,
 )
+from .race_day_pipeline import build_and_save_local_race_day
 from .walk_forward_report import (
     evaluate_local_walk_forward,
     save_walk_forward_artifact,
@@ -127,7 +124,6 @@ def _pace_rows(race_number: int) -> list[dict[str, str]]:
 
 def _write_demo(root: Path) -> None:
     inputs = root / "inputs"
-    predictions = root / "predictions"
     historical = _historical_rows()
     training = inputs / "training.csv"
     history = inputs / "history.csv"
@@ -160,7 +156,7 @@ def _write_demo(root: Path) -> None:
         evaluate_local_walk_forward(training, windows), report
     )
 
-    race_entries: list[dict[str, object]] = []
+    plan_entries: list[dict[str, object]] = []
     first_start = datetime(2026, 2, 1, 10, 0, tzinfo=JST)
     frozen_at = datetime(2026, 2, 1, 9, 5, tzinfo=JST)
     for race_number in range(1, DEMO_RACE_COUNT + 1):
@@ -177,22 +173,32 @@ def _write_demo(root: Path) -> None:
             "expected_pace": ("fast" if race_number % 3 == 0 else "average"),
             "confidence": 0.7,
         }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        output = predictions / f"tokyo-{race_number:02d}"
-        run = build_local_race_prediction(
-            model, history, target, profiles, scenario, frozen_at=frozen_at
-        )
-        save_local_pipeline_run(run, output)
-        race_entries.append({
+        plan_entries.append({
+            "venue": "東京（合成デモ）",
             "race_number": race_number,
-            "prediction_bundle": f"predictions/tokyo-{race_number:02d}",
+            "targets": target.name,
+            "pace_profiles": profiles.name,
+            "pace_scenario": scenario.name,
         })
 
-    manifest = root / "race-day.json"
-    manifest.write_text(json.dumps({
+    plan = inputs / "race-day-plan.json"
+    plan.write_text(json.dumps({
         "schema_version": "1.0",
         "race_date": "2026-02-01",
-        "venues": [{"venue": "東京（合成デモ）", "races": race_entries}],
+        "races": plan_entries,
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    race_day_output = root / "race-day-output"
+    build_and_save_local_race_day(
+        model,
+        history,
+        plan,
+        race_day_output,
+        frozen_at=frozen_at,
+    )
+    for child in sorted(race_day_output.iterdir()):
+        child.rename(root / child.name)
+    race_day_output.rmdir()
+    manifest = root / "race-day.json"
     (root / "README.txt").write_text(
         "このフォルダはUI確認専用の合成デモです。実レースの予想、精度評価、購入判断には使用できません。\n",
         encoding="utf-8",
