@@ -74,6 +74,41 @@ class JraVanFetchTest(unittest.TestCase):
             self.assertFalse(output.exists())
         self.assertTrue(fake.closed)
 
+    def test_file_switch_continues_reading(self):
+        fake = FakeJvLink([
+            (8, "RArecord", "file-1", "20260829090000"),
+            (-1, "", "file-2", "20260829090100"),
+            (8, "SErecord", "file-2", "20260829090100"),
+            (0, "", "", ""),
+        ])
+        with tempfile.TemporaryDirectory() as directory:
+            result = fetch_jv_data(fake, Path(directory) / "snapshot")
+            lines = result.records_path.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(
+            [json.loads(line)["record_type"] for line in lines],
+            ["RA", "SE"],
+        )
+
+    def test_stalled_polling_times_out_and_removes_output(self):
+        fake = FakeJvLink([
+            (-3, "", "", ""),
+            (-3, "", "", ""),
+        ])
+        ticks = iter((10.0, 10.6))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "snapshot"
+            with self.assertRaisesRegex(RuntimeError, "exceeded 0.5 seconds"):
+                fetch_jv_data(
+                    fake,
+                    output,
+                    wait=lambda _seconds: None,
+                    monotonic=lambda: next(ticks),
+                    max_poll_seconds=0.5,
+                )
+            self.assertFalse(output.exists())
+        self.assertTrue(fake.closed)
+
     def test_init_failure_leaves_no_output(self):
         fake = FakeJvLink(init_code=-101)
         with tempfile.TemporaryDirectory() as directory:
@@ -96,7 +131,12 @@ class JraVanFetchTest(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_fetches_realtime_weather_stream(self):
-        fake = FakeJvLink([(8, "WErecord", "rt", "20260829091000"), (0, "", "", "")])
+        fake = FakeJvLink([
+            (8, "WErecord", "rt-1", "20260829091000"),
+            (-1, "", "rt-2", "20260829091100"),
+            (8, "WHrecord", "rt-2", "20260829091100"),
+            (0, "", "", ""),
+        ])
         with tempfile.TemporaryDirectory() as directory:
             result = fetch_jv_realtime(
                 fake, Path(directory) / "weather", dataspec="0B14", key="20260829"
@@ -104,7 +144,7 @@ class JraVanFetchTest(unittest.TestCase):
             manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(fake.realtime_args, ("0B14", "20260829"))
         self.assertTrue(manifest["query"]["realtime"])
-        self.assertEqual(result.record_count, 1)
+        self.assertEqual(result.record_count, 2)
 
 
 if __name__ == "__main__":

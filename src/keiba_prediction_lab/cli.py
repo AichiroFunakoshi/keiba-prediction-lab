@@ -155,6 +155,7 @@ def _build_parser() -> argparse.ArgumentParser:
     fetch_jra_van.add_argument("--fromtime", default="00000000000000")
     fetch_jra_van.add_argument("--option", type=int, default=2)
     fetch_jra_van.add_argument("--sid", default="UNKNOWN")
+    fetch_jra_van.add_argument("--max-poll-seconds", type=float, default=600.0)
 
     fetch_realtime = subparsers.add_parser(
         "fetch-jra-van-realtime",
@@ -164,6 +165,7 @@ def _build_parser() -> argparse.ArgumentParser:
     fetch_realtime.add_argument("--dataspec", required=True)
     fetch_realtime.add_argument("--key", required=True)
     fetch_realtime.add_argument("--sid", default="UNKNOWN")
+    fetch_realtime.add_argument("--max-poll-seconds", type=float, default=600.0)
 
     prepare_jra_van = subparsers.add_parser(
         "prepare-jra-van-race-day",
@@ -484,7 +486,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "audit-training-csv":
-        bundle = build_time_safe_training_bundle(args.training)
+        try:
+            bundle = build_time_safe_training_bundle(args.training)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
         print(json.dumps({
             "path": str(args.training),
             "training_sha256": bundle.training_sha256,
@@ -535,14 +544,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "convert-local-history-snapshot":
-        result = convert_history_snapshot(
-            args.snapshot,
-            args.output,
-            source_id=args.source_id,
-            acquired_at=datetime.fromisoformat(args.acquired_at),
-            observation_offset_minutes=args.observation_offset_minutes,
-            result_delay_minutes=args.result_delay_minutes,
-        )
+        try:
+            result = convert_history_snapshot(
+                args.snapshot,
+                args.output,
+                source_id=args.source_id,
+                acquired_at=datetime.fromisoformat(args.acquired_at),
+                observation_offset_minutes=args.observation_offset_minutes,
+                result_delay_minutes=args.result_delay_minutes,
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
         print(json.dumps({
             "output": str(result.output_directory),
             "manifest": str(result.manifest_path),
@@ -554,15 +570,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "convert-local-target-snapshot":
-        result = convert_target_snapshot(
-            args.snapshot,
-            args.track_conditions,
-            args.output,
-            source_id=args.source_id,
-            acquired_at=datetime.fromisoformat(args.acquired_at),
-            race_date=date.fromisoformat(args.race_date),
-            observed_at=datetime.fromisoformat(args.observed_at),
-        )
+        try:
+            result = convert_target_snapshot(
+                args.snapshot,
+                args.track_conditions,
+                args.output,
+                source_id=args.source_id,
+                acquired_at=datetime.fromisoformat(args.acquired_at),
+                race_date=date.fromisoformat(args.race_date),
+                observed_at=datetime.fromisoformat(args.observed_at),
+            )
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
         print(json.dumps({
             "output": str(result.output_directory),
             "manifest": str(result.manifest_path),
@@ -610,6 +633,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fromtime=args.fromtime,
                 option=args.option,
                 sid=args.sid,
+                max_poll_seconds=args.max_poll_seconds,
             )
         except (OSError, RuntimeError, ValueError, UnicodeError) as error:
             print(json.dumps({
@@ -632,7 +656,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "fetch-jra-van-realtime":
         try:
             result = fetch_jra_van_realtime_on_windows(
-                args.output, dataspec=args.dataspec, key=args.key, sid=args.sid
+                args.output, dataspec=args.dataspec, key=args.key, sid=args.sid,
+                max_poll_seconds=args.max_poll_seconds,
             )
         except (OSError, RuntimeError, ValueError, UnicodeError) as error:
             print(json.dumps({"is_valid": False, "error": str(error)}, ensure_ascii=False, indent=2))

@@ -12,6 +12,7 @@ from keiba_prediction_lab.app_snapshot import build_read_only_app_snapshot
 from keiba_prediction_lab.bundle_audit import audit_prediction_bundle
 from keiba_prediction_lab.cli import main
 from keiba_prediction_lab.race_day_pipeline import (
+    _publish_directory_no_replace,
     audit_local_race_day,
     build_and_save_local_race_day,
     load_local_race_day_plan,
@@ -71,6 +72,22 @@ def _race_day_files(root: Path) -> tuple[Path, Path, Path]:
 
 
 class RaceDayPipelineTest(unittest.TestCase):
+    def test_exclusive_directory_publish_never_replaces_target(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            marker = target / "keep.txt"
+            marker.write_text("keep", encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                _publish_directory_no_replace(source, target)
+
+            self.assertTrue(source.exists())
+            self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
+
     def test_atomically_builds_audited_race_day_and_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

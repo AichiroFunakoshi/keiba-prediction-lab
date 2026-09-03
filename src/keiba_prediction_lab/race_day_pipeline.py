@@ -1,8 +1,12 @@
 """Atomic local race-day prediction from an explicit, result-free plan."""
 
+import ctypes
+import errno
 import hashlib
 import json
+import os
 import shutil
+import sys
 import tempfile
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -24,6 +28,40 @@ _PLAN_KEYS = frozenset({"schema_version", "race_date", "races"})
 _RACE_KEYS = frozenset({
     "venue", "race_number", "targets", "pace_profiles", "pace_scenario",
 })
+
+
+def _publish_directory_no_replace(source: Path, target: Path) -> None:
+    """Atomically publish a same-filesystem directory without replacing target."""
+    if os.name == "nt":
+        source.rename(target)
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    source_bytes = os.fsencode(source)
+    target_bytes = os.fsencode(target)
+    if sys.platform == "darwin":
+        rename = libc.renamex_np
+        rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+        rename.restype = ctypes.c_int
+        result = rename(source_bytes, target_bytes, 0x00000004)  # RENAME_EXCL
+    elif sys.platform.startswith("linux"):
+        rename = libc.renameat2
+        rename.argtypes = (
+            ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
+            ctypes.c_uint,
+        )
+        rename.restype = ctypes.c_int
+        result = rename(
+            -100, source_bytes, -100, target_bytes, 0x00000001
+        )  # AT_FDCWD, RENAME_NOREPLACE
+    else:
+        raise OSError(
+            errno.ENOTSUP,
+            "atomic no-replace directory publish is unsupported",
+            str(target),
+        )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number), str(target))
 
 
 @dataclass(frozen=True)
@@ -458,7 +496,7 @@ def build_and_save_local_race_day(
             ),
         )
         audit_local_race_day(temporary)
-        temporary.rename(target)
+        _publish_directory_no_replace(temporary, target)
     except Exception:
         shutil.rmtree(temporary)
         raise

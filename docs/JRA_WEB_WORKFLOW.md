@@ -14,7 +14,7 @@
 新しい依存関係を仮想環境へ反映する。
 
 ```bash
-cd /Users/inaminetetsuo/keiba-prediction-work/keiba-prediction-lab
+cd /path/to/keiba-prediction-lab
 source .venv/bin/activate
 python -m pip install -e .
 ```

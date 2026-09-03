@@ -185,6 +185,17 @@ class LocalAdapterTest(unittest.TestCase):
         self.assertEqual(summary["training_row_count"], 9)
         self.assertEqual(summary["training_race_count"], 3)
 
+    def test_cli_training_audit_reports_invalid_input_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "missing.csv"
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main(["audit-training-csv", str(path)])
+            summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(summary["is_valid"])
+
     def test_cli_prepares_feature_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

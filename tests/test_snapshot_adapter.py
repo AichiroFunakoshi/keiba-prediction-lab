@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import date, datetime
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from keiba_prediction_lab.cli import main
@@ -15,6 +16,7 @@ from keiba_prediction_lab.local_adapter import (
 )
 from keiba_prediction_lab.snapshot_adapter import (
     IDENTITY_SCHEME,
+    _write_outputs,
     convert_history_snapshot,
     convert_target_snapshot,
 )
@@ -86,6 +88,17 @@ def _write_json(path: Path, payload: object) -> None:
 
 
 class SnapshotAdapterTest(unittest.TestCase):
+    def test_failed_output_write_removes_partial_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "converted"
+            with patch(
+                "keiba_prediction_lab.snapshot_adapter.Path.open",
+                side_effect=OSError("synthetic write failure"),
+            ):
+                with self.assertRaisesRegex(OSError, "synthetic write failure"):
+                    _write_outputs(output, {"history.csv": b"header\n"}, {})
+            self.assertFalse(output.exists())
+
     def test_history_and_targets_share_normalized_name_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -215,6 +228,48 @@ class SnapshotAdapterTest(unittest.TestCase):
         self.assertEqual(summary["race_count"], 3)
         self.assertEqual(summary["runner_count"], 9)
         self.assertFalse(summary["network_access_performed"])
+
+    def test_cli_conversion_reports_invalid_timestamp_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "history.json"
+            _write_json(source, _history_snapshot())
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "convert-local-history-snapshot",
+                    str(source),
+                    "--source-id", "synthetic-private-snapshot",
+                    "--acquired-at", "invalid",
+                    "--output", str(root / "converted"),
+                ])
+            summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(summary["is_valid"])
+
+    def test_cli_target_conversion_reports_invalid_date_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "cards.json"
+            conditions = root / "conditions.json"
+            _write_json(source, _target_snapshot())
+            _write_json(conditions, {"default": "good"})
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "convert-local-target-snapshot",
+                    str(source), str(conditions),
+                    "--source-id", "synthetic-private-snapshot",
+                    "--acquired-at", "2026-02-01T09:00:00+09:00",
+                    "--race-date", "invalid",
+                    "--observed-at", "2026-02-01T10:00:00+09:00",
+                    "--output", str(root / "converted"),
+                ])
+            summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(summary["is_valid"])
 
 
 if __name__ == "__main__":

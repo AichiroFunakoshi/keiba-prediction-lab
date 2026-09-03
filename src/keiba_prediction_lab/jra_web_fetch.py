@@ -355,8 +355,14 @@ def parse_result(content: bytes, url: str) -> dict:
 def parse_track_conditions(content: bytes, race_date: date) -> dict[str, str]:
     document = _doc(content)
     text = _clean(document)
-    date_label = f"{race_date.month}月{race_date.day}日"
-    if date_label not in text:
+    date_labels = (
+        f"{race_date.month}月{race_date.day}日",
+        f"{race_date.month:02d}月{race_date.day:02d}日",
+    )
+    if not any(
+        re.search(rf"(?<!\d){re.escape(label)}", text)
+        for label in date_labels
+    ):
         raise ValueError(f"JRA meeting information is not for {race_date.isoformat()}")
     table = next((table for table in document.xpath('//table') if "現在の天候・馬場状態" in _clean(table)), None)
     if table is None:

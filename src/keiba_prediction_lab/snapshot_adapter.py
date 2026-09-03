@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import re
+import shutil
 import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -183,15 +184,19 @@ def _write_outputs(
     ).encode("utf-8")
     output_directory.mkdir(parents=True, exist_ok=False)
     paths: list[Path] = []
-    for relative_name, content in sorted(outputs.items()):
-        path = output_directory / relative_name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("xb") as handle:
-            handle.write(content)
-        paths.append(path)
-    manifest_path = output_directory / "snapshot-manifest.json"
-    with manifest_path.open("xb") as handle:
-        handle.write(manifest_bytes)
+    try:
+        for relative_name, content in sorted(outputs.items()):
+            path = output_directory / relative_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("xb") as handle:
+                handle.write(content)
+            paths.append(path)
+        manifest_path = output_directory / "snapshot-manifest.json"
+        with manifest_path.open("xb") as handle:
+            handle.write(manifest_bytes)
+    except Exception:
+        shutil.rmtree(output_directory, ignore_errors=True)
+        raise
     return manifest_path, tuple(paths)
 
 

@@ -1,6 +1,7 @@
 """Loopback-only HTTP transport for audited read-only app snapshots."""
 
 import json
+import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
@@ -174,8 +175,16 @@ def serve_read_only_api(
         actual_port = server.server_address[1]
         url = f"http://{LOOPBACK_HOST}:{actual_port}/"
         print(f"Read-only UI: {url}", flush=True)
-        if open_browser and not webbrowser.open(url, new=2):
-            print("ブラウザを自動で開けませんでした。上のURLを手動で開いてください。", flush=True)
+        if open_browser:
+            def launch_browser() -> None:
+                if not webbrowser.open(url, new=2):
+                    print(
+                        "ブラウザを自動で開けませんでした。"
+                        "上のURLを手動で開いてください。",
+                        flush=True,
+                    )
+
+            threading.Thread(target=launch_browser, daemon=True).start()
         try:
             server.serve_forever()
         except KeyboardInterrupt:

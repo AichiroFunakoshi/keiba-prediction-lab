@@ -84,7 +84,10 @@ def _load_snapshot(directory: str | Path) -> tuple[tuple[bytes, ...], str, datet
         records.append(raw_text.encode("cp932"))
     if len(records) != manifest.get("record_count"):
         raise ValueError("JV-Data record count mismatch")
-    return tuple(records), digest, datetime.fromisoformat(manifest["acquired_at"])
+    acquired_at = datetime.fromisoformat(manifest["acquired_at"])
+    if acquired_at.tzinfo is None or acquired_at.utcoffset() is None:
+        raise ValueError("JV-Data acquired_at must be timezone-aware")
+    return tuple(records), digest, acquired_at
 
 
 def _race_key(raw: bytes) -> str:

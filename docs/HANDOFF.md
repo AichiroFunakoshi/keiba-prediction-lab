@@ -63,7 +63,8 @@ git switch main
 git pull --ff-only origin main
 python3 -m venv .venv
 source .venv/bin/activate
-PYTHONPATH=src python -m unittest discover -s tests
+python -m pip install -e .
+python -m unittest discover -s tests
 ```
 
 期待値は、全テスト成功である。テスト数は開発により増えるため、申し送り時点の個数ではなく`OK`を基準にする。

@@ -151,6 +151,27 @@ class JraVanAdapterTest(unittest.TestCase):
                 )
             self.assertFalse(output.exists())
 
+    def test_naive_snapshot_timestamp_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            history, race, realtime = self._snapshots(root)
+            manifest_path = history / "jv-fetch-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["acquired_at"] = "2026-08-02T00:00:00"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            output = root / "prepared"
+
+            with self.assertRaisesRegex(ValueError, "timezone-aware"):
+                prepare_jra_van_race_day(
+                    history, race, realtime, output,
+                    race_date=date(2026, 9, 1),
+                    observed_at=datetime.fromisoformat(
+                        "2026-09-01T09:10:00+09:00"
+                    ),
+                )
+
+            self.assertFalse(output.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

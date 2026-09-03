@@ -11,6 +11,7 @@ from keiba_prediction_lab.jra_web_fetch import (
     INFO_ENDPOINT,
     JraWebClient,
     fetch_jra_web_race_day,
+    parse_track_conditions,
     parse_result,
     refresh_jra_web_race_day,
 )
@@ -96,6 +97,16 @@ def _transport(request, _timeout: float) -> bytes:
 
 
 class JraWebWorkflowTest(unittest.TestCase):
+    def test_track_conditions_reject_wrong_month_substring(self) -> None:
+        wrong_month = INFO.replace("1月2日", "11月2日")
+        with self.assertRaisesRegex(ValueError, "not for"):
+            parse_track_conditions(_encoded(wrong_month), RACE_DATE)
+
+    def test_track_conditions_accept_zero_padded_date(self) -> None:
+        padded = INFO.replace("1月2日", "01月02日")
+        conditions = parse_track_conditions(_encoded(padded), RACE_DATE)
+        self.assertEqual(conditions["東京:turf"], "良")
+
     def test_result_parser_accepts_current_and_legacy_url_prefixes(self) -> None:
         current = RESULT_URL.replace("pw01sde10", "pw01sde01")
         self.assertEqual(parse_result(_encoded(RESULT), RESULT_URL)["race"], 1)
