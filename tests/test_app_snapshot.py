@@ -100,7 +100,7 @@ class ReadOnlyAppSnapshotTest(unittest.TestCase):
             {row["stake_yen"] for row in prediction_payload["bet_type_candidates"]},
             {0},
         )
-        self.assertEqual(payload["walk_forward"]["evaluation_race_count"], 4)
+        self.assertEqual(payload["walk_forward"]["evaluation_race_count"], 300)
         self.assertEqual(payload["win5"]["stake_yen"], 0)
         self.assertEqual(len(payload["win5"]["legs"]), 5)
         self.assertEqual(payload["win5"]["selection"][0], "winner-1")

@@ -21,6 +21,8 @@ from .walk_forward import (
 
 
 WALK_FORWARD_ARTIFACT_SCHEMA_VERSION = "1.0"
+MIN_FORMAL_EVALUATION_RACES = 300
+MAX_FORMAL_EVALUATION_RACES = 500
 
 
 @dataclass(frozen=True)
@@ -213,9 +215,24 @@ def _payload(artifact: WalkForwardArtifact) -> dict[str, object]:
     }
 
 
+def _require_formal_evaluation_size(race_count: int) -> None:
+    if not (
+        MIN_FORMAL_EVALUATION_RACES
+        <= race_count
+        <= MAX_FORMAL_EVALUATION_RACES
+    ):
+        raise ValueError(
+            "formal walk-forward artifacts require 300 to 500 evaluation races; "
+            f"got {race_count}"
+        )
+
+
 def save_walk_forward_artifact(
     artifact: WalkForwardArtifact, path: str | Path
 ) -> str:
+    _require_formal_evaluation_size(
+        artifact.result.aggregate_model_score.race_count
+    )
     payload = _payload(artifact)
     canonical = json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -382,6 +399,7 @@ def load_walk_forward_artifact_bytes(content: bytes) -> WalkForwardArtifact:
             expected_races, expected_runners
         ):
             raise ValueError("aggregate score counts do not match folds")
+    _require_formal_evaluation_size(expected_races)
 
     calibration_payload = _required(payload, "calibration", dict)
     _exact_keys(
