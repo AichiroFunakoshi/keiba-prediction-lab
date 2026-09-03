@@ -1,6 +1,12 @@
-# Keiba Prediction Lab
+<p align="center">
+  <img src="assets/macos/RaceWeave.png" width="160" alt="RaceWeave app icon">
+</p>
+
+# RaceWeave（Keiba Prediction Lab）
 
 中央競馬の「1着」と「三連単」を、発走前情報だけで再現可能に予測・検証するオープンソース研究プロジェクトです。
+
+アプリ名のRaceWeave（レースウィーヴ）は、最初に1着確率を定め、そこから異なる2着・3着の展開を織り上げる研究方針を表します。
 
 目的は利益最大化ではありません。まず1着確率を高め、その確率から三連単の着順同時確率を作り、予測が実際にどこまで当たるかを長期的に検証します。マーチンゲール、オッズに応じた購入額変更、多点購入による見かけ上の的中率向上は研究対象にしません。
 
@@ -44,6 +50,7 @@
 
 - Python 3.11以上
 - 外部Pythonパッケージ: `lxml>=5,<7`（`pip install -e .`で導入）
+- macOSアプリ作成時のみ: `pywebview>=5,<7`、`pyinstaller>=6,<7`、`pillow>=11,<13`
 - テスト: `unittest`（標準ライブラリ）
 
 ```bash
@@ -230,6 +237,18 @@ python -m keiba_prediction_lab.cli serve-ui-demo local/ui-demo
 2つ目のコマンドは既定ブラウザで`http://127.0.0.1:8765/`を開きます。自動で開かない場合はURLを手動で開いてください。終了はターミナルで`Control-C`です。すでにデモを生成済みなら、次回は`serve-ui-demo`だけを実行します。ブラウザを自動起動しない場合は`--no-open-browser`を付けます。
 
 macOSでは、リポジトリ直下の`open-ui-demo.command`をFinderでダブルクリックしても同じ画面を起動できます。初回だけ合成デモを自動生成し、2回目以降は保存済みデモを再監査して表示します。実行中はTerminalウインドウを閉じず、終了時はそのウインドウで`Control-C`を押します。仮想環境`.venv`がない場合や起動に失敗した場合は、原因を確認できるようTerminalを開いたまま停止します。
+
+### macOSアプリとして開く
+
+RaceWeaveはPWAではありません。macOS標準WebKitを使う専用ウインドウとして動作し、SafariやChromeを起動しません。デスクトップ用依存を導入してビルドスクリプトを実行すると、Git管理対象外の`dist/RaceWeave.app`を生成します。
+
+```bash
+source .venv/bin/activate
+python -m pip install -e '.[desktop]'
+./build-raceweave-app.command
+```
+
+Finderから起動した初期版は、`~/Library/Application Support/RaceWeave/ui-demo-v1`に合成デモを一度だけ作り、起動ごとに再監査して表示します。実成果物を専用ウインドウで確認する方法、Developer ID未署名の個人利用版の範囲、公開してよいファイルは[macOSアプリ手順](docs/DESKTOP_APP.md)を参照してください。
 
 ```bash
 python -m keiba_prediction_lab.cli inspect-app-state \

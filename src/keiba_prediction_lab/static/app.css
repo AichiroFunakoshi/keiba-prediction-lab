@@ -22,6 +22,7 @@ button, table { font: inherit; }
   background: #031f4b;
 }
 .brand { font-size: 25px; font-weight: 750; letter-spacing: .04em; white-space: nowrap; }
+.brand span { margin-left: 7px; color: #9ebbe7; font-size: 11px; letter-spacing: .08em; }
 .audit-badge { padding: 8px 14px; border: 1px solid #2b9d6c; border-radius: 5px; color: #68dda4; font-weight: 700; white-space: nowrap; }
 .race-title { justify-self: center; font-size: 24px; font-weight: 700; }
 .topbar time { font-size: 18px; white-space: nowrap; }
