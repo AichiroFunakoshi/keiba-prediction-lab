@@ -29,13 +29,12 @@ class DataSourceRegistryTest(unittest.TestCase):
             source for source in sources
             if source.source_id == "jra-public-web-private-use"
         )
-        self.assertIs(jra_web.status, SourceStatus.APPROVED)
+        self.assertIs(jra_web.status, SourceStatus.REVIEW_REQUIRED)
         self.assertIs(jra_web.redistribution, RedistributionStatus.PROHIBITED)
         unapproved_real = [
             source for source in sources
-            if source.scope != "synthetic" and source.source_id not in {
-                "jra-van-data-lab", "jra-public-web-private-use",
-            }
+            if source.scope != "synthetic"
+            and source.source_id != "jra-van-data-lab"
         ]
         self.assertTrue(unapproved_real)
         self.assertTrue(all(

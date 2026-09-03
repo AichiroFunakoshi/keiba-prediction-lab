@@ -70,11 +70,14 @@ from .snapshot_adapter import (
 )
 from .ui_demo import create_ui_demo, load_ui_demo
 from .walk_forward_report import (
+    MAX_FORMAL_EVALUATION_RACES,
+    MIN_FORMAL_EVALUATION_RACES,
     audit_walk_forward_artifact,
     evaluate_local_walk_forward,
     save_walk_forward_artifact,
 )
 from .win5 import build_win5_forecast, load_win5_forecast, save_win5_forecast
+from .winner_diagnostics import diagnose_winner_misses
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -175,7 +178,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     fetch_jra_web = subparsers.add_parser(
         "fetch-jra-web",
-        help="privately fetch public JRA race cards and bounded past results on macOS",
+        help="experimentally fetch public JRA pages after an independent terms check",
     )
     fetch_jra_web.add_argument("--race-date", required=True)
     fetch_jra_web.add_argument("--max-history-races", type=int, default=360)
@@ -183,20 +186,20 @@ def _build_parser() -> argparse.ArgumentParser:
     fetch_jra_web.add_argument(
         "--accept-private-use-terms",
         action="store_true",
-        help="acknowledge local private use and no redistribution",
+        help="confirm an independent current-terms check, private use, and no redistribution",
     )
     fetch_jra_web.add_argument("--output", type=Path, required=True)
 
     refresh_jra_web = subparsers.add_parser(
         "refresh-jra-web-race-day",
-        help="refetch same-day JRA cards, weights, odds, scratches, and conditions",
+        help="experimentally refresh same-day JRA data after a current-terms check",
     )
     refresh_jra_web.add_argument("snapshot", type=Path)
     refresh_jra_web.add_argument("--delay-seconds", type=float, default=1.0)
     refresh_jra_web.add_argument(
         "--accept-private-use-terms",
         action="store_true",
-        help="acknowledge local private use and no redistribution",
+        help="confirm an independent current-terms check, private use, and no redistribution",
     )
     refresh_jra_web.add_argument("--output", type=Path, required=True)
 
@@ -321,6 +324,14 @@ def _build_parser() -> argparse.ArgumentParser:
     walk_forward.add_argument("training", type=Path)
     walk_forward.add_argument("windows", type=Path)
     walk_forward.add_argument("--report", type=Path)
+    walk_forward.add_argument(
+        "--min-evaluation-races", type=int,
+        default=MIN_FORMAL_EVALUATION_RACES,
+    )
+    walk_forward.add_argument(
+        "--max-evaluation-races", type=int,
+        default=MAX_FORMAL_EVALUATION_RACES,
+    )
 
     audit_walk_forward = subparsers.add_parser(
         "audit-walk-forward-report",
@@ -383,10 +394,20 @@ def _build_parser() -> argparse.ArgumentParser:
             "bet-types-payouts.json"
         ),
     )
+
     evaluate.add_argument(
         "--report",
         type=Path,
         help="save an integrity-protected structured evaluation JSON",
+    )
+
+    winner_diagnostics = subparsers.add_parser(
+        "diagnose-winner-misses",
+        help="diagnose top-one errors from audited race directories",
+    )
+    winner_diagnostics.add_argument("race_directories", type=Path, nargs="+")
+    winner_diagnostics.add_argument(
+        "--format", choices=("markdown", "json"), default="markdown"
     )
 
     compare = subparsers.add_parser(
@@ -474,6 +495,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             }),
             "is_valid": True,
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "diagnose-winner-misses":
+        report = diagnose_winner_misses(tuple(args.race_directories))
+        if args.format == "json":
+            print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            print(report.to_markdown(), end="")
         return 0
 
     if args.command == "prepare-features":
@@ -955,7 +984,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "evaluate-walk-forward":
         try:
+            if args.min_evaluation_races < MIN_FORMAL_EVALUATION_RACES:
+                raise ValueError("minimum evaluation races must be at least 300")
+            if args.max_evaluation_races > MAX_FORMAL_EVALUATION_RACES:
+                raise ValueError("maximum evaluation races must be at most 500")
+            if args.min_evaluation_races > args.max_evaluation_races:
+                raise ValueError(
+                    "minimum evaluation races must not exceed maximum"
+                )
             artifact = evaluate_local_walk_forward(args.training, args.windows)
+            evaluation_races = artifact.result.aggregate_model_score.race_count
+            if evaluation_races < args.min_evaluation_races:
+                raise ValueError(
+                    f"evaluation has {evaluation_races} races; "
+                    f"at least {args.min_evaluation_races} are required"
+                )
+            if evaluation_races > args.max_evaluation_races:
+                raise ValueError(
+                    f"evaluation has {evaluation_races} races; "
+                    f"at most {args.max_evaluation_races} are allowed"
+                )
             if args.report is not None:
                 save_walk_forward_artifact(artifact, args.report)
         except (OSError, ValueError, UnicodeError) as error:

@@ -30,10 +30,6 @@
         <span>競馬場を選択</span>
         <div id="venue-tabs" class="venue-tabs" role="tablist"></div>
       </div>
-      <div class="dashboard-featured">
-        <span>先頭レースの正式候補｜三連単 1点100円</span>
-        <div id="dashboard-featured-ticket" class="compact-ticket"></div>
-      </div>
     </section>
 
     <section id="race-ledger" class="race-ledger" aria-labelledby="race-ledger-title">
@@ -86,7 +82,7 @@
           <div class="winner-grid">
             <article class="winner-focus">
               <div class="horse-number" id="winner-number">—</div>
-              <p class="horse-label">予測1位の馬ID</p>
+              <p class="horse-label" id="winner-label">予測1位</p>
               <strong id="winner-id">—</strong>
               <hr>
               <span>1着確率</span>
@@ -96,7 +92,7 @@
             <div class="ranking-wrap">
               <p id="ranking-summary" class="ranking-summary">上位候補</p>
               <table>
-                <thead><tr><th>順位</th><th>馬ID</th><th>1着確率</th><th>3着内確率</th></tr></thead>
+                <thead><tr><th>順位</th><th>馬番</th><th>馬名</th><th>1着確率</th><th>3着内確率</th></tr></thead>
                 <tbody id="ranking-body"></tbody>
               </table>
             </div>

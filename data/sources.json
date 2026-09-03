@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "last_reviewed": "2026-08-29",
+  "last_reviewed": "2026-09-03",
   "sources": [
     {
       "source_id": "synthetic-fixtures",
@@ -21,8 +21,8 @@
       "declared_license": "No open-data license; JRA website terms apply",
       "provenance": "Public pages published by the Japan Racing Association and acquired directly by the user on their own machine.",
       "redistribution": "prohibited",
-      "status": "approved",
-      "reason": "Approved only for conservative, rate-limited acquisition for the user's private local analysis. The fetcher requires an explicit acknowledgement, records every URL and hash, and raw or derived row-level data must never be committed or redistributed. This is not an open-data approval."
+      "status": "review_required",
+      "reason": "An opt-in, rate-limited fetcher exists for private local analysis, but robots.txt does not grant a data license and the website terms do not explicitly authorize automated bulk acquisition. The user must independently confirm the current terms before each use. Raw or derived row-level data must never be committed or redistributed."
     },
     {
       "source_id": "jra-van-data-lab",

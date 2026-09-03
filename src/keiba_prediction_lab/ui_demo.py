@@ -29,6 +29,9 @@ from .walk_forward_report import (
 
 JST = ZoneInfo("Asia/Tokyo")
 DEMO_RACE_COUNT = 12
+DEMO_TRAINING_RACE_COUNT = 20
+DEMO_CALIBRATION_RACE_COUNT = 10
+DEMO_EVALUATION_RACE_COUNT = 300
 
 
 @dataclass(frozen=True)
@@ -53,14 +56,23 @@ def _write_csv(
 
 def _historical_rows() -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
-    for day in range(1, 13):
+    first_day = datetime(2025, 1, 1, 10, 0, tzinfo=JST)
+    total_races = (
+        DEMO_TRAINING_RACE_COUNT
+        + DEMO_CALIBRATION_RACE_COUNT
+        + DEMO_EVALUATION_RACE_COUNT
+    )
+    for race_index in range(total_races):
+        observed_at = first_day + timedelta(days=race_index)
+        scheduled_at = observed_at + timedelta(hours=2)
+        result_known_at = scheduled_at + timedelta(minutes=20)
         for horse in range(1, 6):
-            finish = ((horse + day - 2) % 5) + 1
+            finish = ((horse + race_index - 1) % 5) + 1
             rows.append({
-                "race_id": f"synthetic-history-{day:02d}",
-                "scheduled_at": f"2026-01-{day:02d}T12:00:00+09:00",
-                "observed_at": f"2026-01-{day:02d}T10:00:00+09:00",
-                "result_known_at": f"2026-01-{day:02d}T12:20:00+09:00",
+                "race_id": f"synthetic-history-{race_index + 1:03d}",
+                "scheduled_at": scheduled_at.isoformat(),
+                "observed_at": observed_at.isoformat(),
+                "result_known_at": result_known_at.isoformat(),
                 "horse_id": f"合成デモ馬{horse}",
                 "jockey_id": f"合成デモ騎手{horse}",
                 "trainer_id": f"合成デモ調教師{horse}",
@@ -70,7 +82,7 @@ def _historical_rows() -> list[dict[str, str]]:
                 "distance_m": "1600",
                 "post_position": str(horse),
                 "carried_weight_kg": "56",
-                "body_weight_kg": str(470 + horse * 2 + day % 3),
+                "body_weight_kg": str(470 + horse * 2 + race_index % 3),
                 "finish_position": str(finish),
             })
     return rows
@@ -130,18 +142,15 @@ def _write_demo(root: Path) -> None:
         [{key: value for key, value in row.items() if key != "observed_at"}
          for row in historical],
     )
-    windows.write_text(json.dumps([
-        {
-            "train_end": "2026-01-04T10:00:00+09:00",
-            "calibration_end": "2026-01-06T10:00:00+09:00",
-            "evaluation_end": "2026-01-08T10:00:00+09:00",
-        },
-        {
-            "train_end": "2026-01-08T10:00:00+09:00",
-            "calibration_end": "2026-01-10T10:00:00+09:00",
-            "evaluation_end": "2026-01-12T10:00:00+09:00",
-        },
-    ], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    first_day = datetime(2025, 1, 1, 10, 0, tzinfo=JST)
+    train_end = first_day + timedelta(days=DEMO_TRAINING_RACE_COUNT - 1)
+    calibration_end = train_end + timedelta(days=DEMO_CALIBRATION_RACE_COUNT)
+    evaluation_end = calibration_end + timedelta(days=DEMO_EVALUATION_RACE_COUNT)
+    windows.write_text(json.dumps([{
+        "train_end": train_end.isoformat(),
+        "calibration_end": calibration_end.isoformat(),
+        "evaluation_end": evaluation_end.isoformat(),
+    }], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     trained = train_local_model_artifact(
         training, parameters=ModelTrainingParameters(epochs=20)

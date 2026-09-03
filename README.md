@@ -38,12 +38,12 @@
 - 監査済み予測を日本語Markdownレポートにする
 - 結果と払戻を別ファイルで追加し、券種別・期間別・条件別に事後評価する
 
-実データ源はまだプロジェクトとして承認していません。自動スクレイピングも実装しておらず、テストには合成データだけを使用しています。そのため、現段階では実競馬に対する的中率を主張しません。
+契約者本人がローカルで使うJRA-VAN Data Lab.を、現在の承認済み実データ経路としています。JRA公開ページ向けの取得器もありますが、利用許諾を保証しない明示選択式の実験経路であり、標準データ源ではありません。自動テストには合成データだけを使用しているため、現段階では実競馬に対する的中率を主張しません。
 
 ## 動作環境
 
 - Python 3.11以上
-- 外部Pythonパッケージ不要
+- 外部Pythonパッケージ: `lxml>=5,<7`（`pip install -e .`で導入）
 - テスト: `unittest`（標準ライブラリ）
 
 ```bash
@@ -51,7 +51,8 @@ git clone https://github.com/AichiroFunakoshi/keiba-prediction-lab.git
 cd keiba-prediction-lab
 python3 -m venv .venv
 source .venv/bin/activate
-PYTHONPATH=src python -m unittest discover -s tests
+python -m pip install -e .
+python -m unittest discover -s tests
 ```
 
 以下の例では、ソースツリーから直接CLIを実行します。
@@ -127,6 +128,8 @@ python -m keiba_prediction_lab.cli train-model local/training.csv --output local
 ```bash
 python -m keiba_prediction_lab.cli evaluate-walk-forward \
   local/training.csv local/windows.json \
+  --min-evaluation-races 300 \
+  --max-evaluation-races 500 \
   --report reports/walk-forward.json
 python -m keiba_prediction_lab.cli audit-walk-forward-report \
   reports/walk-forward.json
@@ -255,7 +258,13 @@ python -m keiba_prediction_lab.cli serve-read-only-api \
     {
       "venue": "新潟",
       "races": [
-        {"race_number": 1, "prediction_bundle": "outputs/niigata-1R"},
+        {
+          "race_number": 1,
+          "prediction_bundle": "outputs/niigata-1R",
+          "runner_display": [
+            {"horse_id": "horse-1", "horse_number": 5, "horse_name": "サクラエンパイア", "frame_number": 3}
+          ]
+        },
         {"race_number": 2, "prediction_bundle": "outputs/niigata-2R"}
       ]
     }
@@ -272,6 +281,8 @@ python -m keiba_prediction_lab.cli serve-read-only-api \
 
 開催日マニフェストを指定すると、最初に競馬場単位の全レース一覧を表示します。一覧は1着候補、1着確率、正式な三連単1点だけを示し、行を選ぶと従来の詳細画面へ移ります。WIN5影予測は一覧画面だけに表示されます。
 
+`venues`へ記載した開催場はすべてタブとして表示され、左右矢印キーでも切り替えられます。`runner_display`は任意ですが、確認済みの馬番・馬名・枠番を指定すると、一覧、レース詳細、正式な三連単、対応するWIN5欄を同じ馬番・馬名・枠色で表示します。枠番を推測して色を付けることはなく、未指定時は監査済みの馬IDと固定色の順位札へ安全に戻ります。横幅1,051ピクセル以上では、画面高に応じて一覧の余白を調整し、12レースとWIN5を1画面で確認できる密度へ切り替えます。
+
 起動後にブラウザで`http://127.0.0.1:8765/`を開くと、読み取り専用画面を表示できます。正式候補の三連単1点100円、1着確率順位、購入額0円の影予測、ウォークフォワード指標、任意指定したWIN5影予測を別領域で確認できます。WIN5欄は`--win5-forecast`を指定した場合だけ表示され、5点の買い目ではなく対象5レース各1頭の研究用組合せです。`http://127.0.0.1:8765/api/v1/state`は監査済みスナップショット、`http://127.0.0.1:8765/health`は稼働状態を返します。終了は`Control-C`です。
 
 この段階ではファイル選択、学習、予測、保存、自動投票を提供しません。画面の再読込も監査済みスナップショットを読み直すだけであり、入力成果物を変更しません。書込み系HTTPメソッドも拒否します。
@@ -279,6 +290,17 @@ python -m keiba_prediction_lab.cli serve-read-only-api \
 ### 6. レース後に評価する
 
 結果・払戻・レース条件は、発走前予測を変更せず別ファイルとして追加します。
+
+1着的中率を改善する前に、監査済み予測と`bet-types-payouts.json`から外れ方を診断します。実勝馬が予測2位だった僅差の外れと、予測上位3頭にも入らなかった外れ、高信頼での外れを分離します。
+
+```bash
+python -m keiba_prediction_lab.cli diagnose-winner-misses \
+  outputs/race-1 outputs/race-2 --format markdown
+```
+
+この診断は係数を自動更新しません。少数の直近結果は改善仮説の材料に限り、モデル変更は固定したウォークフォワード期間で別途検証します。
+
+別のMacにGitHub非公開の予測・結果が残っている場合は、[ローカル成果物復旧手順](docs/LOCAL_RESULT_RECOVERY.md)に従い、その端末で探索、監査、対応付け、診断を行います。実データはGitHubへ追加しません。
 
 ```bash
 python -m keiba_prediction_lab.cli evaluate-bet-types \
@@ -330,7 +352,7 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 
 詳しくは [データ利用方針](docs/DATA_USAGE_POLICY.md) と [ローカルデータ契約](docs/LOCAL_DATA_ADAPTER.md) を参照してください。
 
-無料の標準実データ経路は、本人のMacからJRA公式公開ページを低頻度で取得する`fetch-jra-web`である。取得物は私的分析だけに使い、GitHubや第三者へ再配布しない。取得後は`prepare-jra-web-race-day`で、学習CSV、当日CSV、脚質、想定ペース、開催日計画を一括生成する。手順は[JRA公式公開ページを使う無料ローカル運用](docs/JRA_WEB_WORKFLOW.md)を参照する。JRA-VAN Data Lab.は有料の代替経路として残す。
+`fetch-jra-web`は、本人のMacでだけ動かす明示同意必須の実験経路として実装している。JRA公開ページはオープンデータではなく、`robots.txt`に拒否指定がないことも自動取得や二次利用の許諾を意味しない。利用者が実行前に最新条件を確認できない場合は使用しない。取得物は私的分析だけに使い、GitHubや第三者へ再配布しない。取得後は`prepare-jra-web-race-day`で、学習CSV、当日CSV、脚質、想定ペース、開催日計画を一括生成できる。手順は[JRA公式公開ページを使う無料ローカル運用](docs/JRA_WEB_WORKFLOW.md)を参照する。JRA-VAN Data Lab.は契約者向けの公式取得経路として残す。
 
 夜間取得後は`refresh-jra-web-race-day`で履歴を再利用しつつ、最初のレース前に馬体重、取消、馬場、単勝オッズを更新できる。独立予想の固定後は`build-market-guard`で市場との大幅乖離を研究用影成果物として記録できる。オッズはモデル確率や順位を変更しない。詳細は[市場乖離ガード](docs/MARKET_GUARD.md)を参照する。
 

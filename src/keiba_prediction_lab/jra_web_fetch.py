@@ -30,6 +30,10 @@ SOURCE_ID = "jra-public-web-private-use"
 FETCHER_VERSION = "jra-public-web-v1"
 REFRESHER_VERSION = "jra-public-web-race-day-refresh-v1"
 BASE = "https://www.jra.go.jp"
+USER_AGENT = (
+    "keiba-prediction-lab/0.1 "
+    "(+https://github.com/AichiroFunakoshi/keiba-prediction-lab)"
+)
 CARD_ENDPOINT = f"{BASE}/JRADB/accessD.html"
 INFO_ENDPOINT = f"{BASE}/JRADB/accessI.html"
 RESULT_ENDPOINT = f"{BASE}/JRADB/accessS.html"
@@ -71,8 +75,8 @@ class JraWebClient:
         timeout_seconds: float = 60.0,
         transport: Callable[[Request, float], bytes] | None = None,
     ) -> None:
-        if delay_seconds < 0:
-            raise ValueError("delay_seconds must not be negative")
+        if delay_seconds < 1.0 and transport is None:
+            raise ValueError("live JRA requests require at least a 1 second delay")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         self.delay_seconds = delay_seconds
@@ -93,10 +97,7 @@ class JraWebClient:
                 time.sleep(remaining)
         data = urlencode({"CNAME": cname}).encode("ascii") if cname else None
         headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 Chrome/127.0 Safari/537.36"
-            ),
+            "User-Agent": USER_AGENT,
             "Accept-Language": "ja-JP,ja;q=0.9",
             "Referer": f"{BASE}/",
         }
@@ -393,8 +394,8 @@ def fetch_jra_web_race_day(
     """Acquire a result-free race card plus bounded past results."""
     if not accept_private_use_terms:
         raise ValueError("--accept-private-use-terms is required for JRA public-web acquisition")
-    if max_history_races < 1:
-        raise ValueError("max_history_races must be positive")
+    if not 1 <= max_history_races <= 500:
+        raise ValueError("max_history_races must be from 1 to 500")
     destination = Path(output_directory)
     if destination.exists():
         raise FileExistsError(f"output already exists: {destination}")

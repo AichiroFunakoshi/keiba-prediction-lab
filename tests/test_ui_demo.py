@@ -20,11 +20,18 @@ class UiDemoTest(unittest.TestCase):
                 walk_forward_report=demo.walk_forward_report,
             )
             notice = (output / "README.txt").read_text(encoding="utf-8")
+            walk_forward = json.loads(
+                demo.walk_forward_report.read_text(encoding="utf-8")
+            )
 
         self.assertEqual(demo.race_count, 12)
         self.assertIsNotNone(snapshot.race_day)
         self.assertEqual(snapshot.race_day.venues[0].venue, "東京（合成デモ）")
         self.assertEqual(len(snapshot.race_day.venues[0].races), 12)
+        self.assertEqual(
+            walk_forward["payload"]["aggregate_model_score"]["race_count"],
+            300,
+        )
         self.assertIn("実レースの予想", notice)
 
     def test_preserves_existing_output(self) -> None:

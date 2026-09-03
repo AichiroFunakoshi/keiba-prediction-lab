@@ -110,6 +110,24 @@ class JraWebWorkflowTest(unittest.TestCase):
                     client=JraWebClient(delay_seconds=0, transport=_transport),
                 )
 
+    def test_live_client_rejects_disabled_request_pacing(self) -> None:
+        with self.assertRaisesRegex(ValueError, "at least a 1 second delay"):
+            JraWebClient(delay_seconds=0)
+
+    def test_history_request_limit_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            for value in (0, 501):
+                with self.assertRaisesRegex(ValueError, "from 1 to 500"):
+                    fetch_jra_web_race_day(
+                        RACE_DATE,
+                        Path(directory) / f"raw-{value}",
+                        max_history_races=value,
+                        accept_private_use_terms=True,
+                        client=JraWebClient(
+                            delay_seconds=0, transport=_transport
+                        ),
+                    )
+
     def test_fetches_and_prepares_formal_race_day_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
