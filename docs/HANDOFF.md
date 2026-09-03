@@ -271,6 +271,8 @@ LightGBMなどの表形式モデルは、実データの基準評価が得られ
 
 macOSのFinderからは、リポジトリ直下の実行可能ファイル`open-ui-demo.command`をダブルクリックして合成デモを起動できる。ランチャーはリポジトリ内の`.venv`だけを使用し、初回デモ生成後に既存の`serve-ui-demo`へ処理を渡す。予測計算、監査、HTTP配信をシェルへ複製しない。
 
+読み取り専用UIはRaceWeave（レースウィーヴ）というmacOSアプリにも包装できる。`python -m pip install -e '.[desktop]'`後に`build-raceweave-app.command`を実行し、Git除外済みの`dist/RaceWeave.app`を生成する。個人利用版はad-hoc署名を検証するが、Developer ID署名と公証は未実施である。Finder起動時はApplication Support内の合成デモだけを表示し、実データをアプリやGitHubへ同梱しない。実成果物は当面`raceweave`コマンドで明示指定する。詳細は[macOSアプリ手順](DESKTOP_APP.md)を参照する。
+
 ## 9. 現在の既知の限界
 
 - 無料かつ利用許諾が明確な標準データ経路は未確定。JRA公開ページ取得は明示同意必須の実験経路

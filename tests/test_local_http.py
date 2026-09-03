@@ -90,6 +90,7 @@ class LocalReadOnlyHttpTest(unittest.TestCase):
         self.assertEqual(health, {"status": "ok", "mode": "read-only"})
         self.assertEqual(root_status, 200)
         self.assertEqual(root_headers["content-type"], "text/html; charset=utf-8")
+        self.assertIn(b"RaceWeave", root)
         self.assertIn("三連単 1点100円".encode(), root)
         self.assertIn("WIN5影予測".encode(), root)
         self.assertIn("全レース予測一覧".encode(), root)
