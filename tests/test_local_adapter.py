@@ -170,6 +170,32 @@ class LocalAdapterTest(unittest.TestCase):
         self.assertEqual(summary["training_row_count"], 9)
         self.assertEqual(summary["training_sha256"], artifact["training_sha256"])
 
+    def test_cli_audits_training_csv_with_its_own_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "training.csv"
+            _write(path, TRAINING_COLUMNS, _training_rows())
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main(["audit-training-csv", str(path)])
+            summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(summary["is_valid"])
+        self.assertEqual(summary["training_row_count"], 9)
+        self.assertEqual(summary["training_race_count"], 3)
+
+    def test_cli_training_audit_reports_invalid_input_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "missing.csv"
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main(["audit-training-csv", str(path)])
+            summary = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(summary["is_valid"])
+
     def test_cli_prepares_feature_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -210,8 +236,44 @@ class LocalAdapterTest(unittest.TestCase):
         self.assertEqual(len(bundle.features), 3)
         self.assertEqual(bundle.features[0].horse_starts, 1)
         self.assertIsNone(bundle.features[2].body_weight_kg)
+        self.assertEqual(bundle.horse_history_coverage_count, 3)
+        self.assertEqual(bundle.jockey_history_coverage_count, 3)
+        self.assertEqual(bundle.trainer_history_coverage_count, 3)
         self.assertTrue(bundle.input_data_version.startswith("sha256:"))
         self.assertEqual(payload["input_data_version"], bundle.input_data_version)
+        self.assertEqual(payload["feature_history_coverage"]["horse"], 3)
+
+    def test_rejects_numeric_target_ids_against_named_history_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            history = root / "history.csv"
+            targets = root / "targets.csv"
+            rows = _target_rows()
+            for index, row in enumerate(rows, start=1):
+                row["horse_id"] = str(index)
+            _write(history, HISTORY_COLUMNS, _history_rows())
+            _write(targets, TARGET_COLUMNS, rows)
+
+            with self.assertRaisesRegex(
+                ValueError, "horse_id identifier domain differs"
+            ):
+                build_local_feature_bundle(history, targets)
+
+    def test_rejects_namespaced_targets_against_raw_history_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            history = root / "history.csv"
+            targets = root / "targets.csv"
+            rows = _target_rows()
+            for row in rows:
+                row["horse_id"] = f"horse:name:{row['horse_id']}"
+            _write(history, HISTORY_COLUMNS, _history_rows())
+            _write(targets, TARGET_COLUMNS, rows)
+
+            with self.assertRaisesRegex(
+                ValueError, "horse_id namespace usage differs"
+            ):
+                build_local_feature_bundle(history, targets)
 
     def test_target_file_rejects_result_column(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

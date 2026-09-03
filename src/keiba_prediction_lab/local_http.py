@@ -1,6 +1,8 @@
 """Loopback-only HTTP transport for audited read-only app snapshots."""
 
 import json
+import threading
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
@@ -160,6 +162,7 @@ def serve_read_only_api(
     win5_forecast: str | Path | None = None,
     race_day_manifest: str | Path | None = None,
     port: int = DEFAULT_READ_ONLY_API_PORT,
+    open_browser: bool = False,
 ) -> None:
     """Audit selected artifacts, then serve their immutable snapshot forever."""
     snapshot = build_read_only_app_snapshot(
@@ -170,7 +173,18 @@ def serve_read_only_api(
     )
     with create_read_only_server(snapshot, port=port) as server:
         actual_port = server.server_address[1]
-        print(f"Read-only API: http://{LOOPBACK_HOST}:{actual_port}", flush=True)
+        url = f"http://{LOOPBACK_HOST}:{actual_port}/"
+        print(f"Read-only UI: {url}", flush=True)
+        if open_browser:
+            def launch_browser() -> None:
+                if not webbrowser.open(url, new=2):
+                    print(
+                        "ブラウザを自動で開けませんでした。"
+                        "上のURLを手動で開いてください。",
+                        flush=True,
+                    )
+
+            threading.Thread(target=launch_browser, daemon=True).start()
         try:
             server.serve_forever()
         except KeyboardInterrupt:

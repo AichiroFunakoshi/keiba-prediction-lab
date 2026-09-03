@@ -38,12 +38,12 @@
 - 監査済み予測を日本語Markdownレポートにする
 - 結果と払戻を別ファイルで追加し、券種別・期間別・条件別に事後評価する
 
-実データ源はまだプロジェクトとして承認していません。自動スクレイピングも実装しておらず、テストには合成データだけを使用しています。そのため、現段階では実競馬に対する的中率を主張しません。
+契約者本人がローカルで使うJRA-VAN Data Lab.を、現在の承認済み実データ経路としています。JRA公開ページ向けの取得器もありますが、利用許諾を保証しない明示選択式の実験経路であり、標準データ源ではありません。自動テストには合成データだけを使用しているため、現段階では実競馬に対する的中率を主張しません。
 
 ## 動作環境
 
 - Python 3.11以上
-- 外部Pythonパッケージ不要
+- 外部Pythonパッケージ: `lxml>=5,<7`（`pip install -e .`で導入）
 - テスト: `unittest`（標準ライブラリ）
 
 ```bash
@@ -51,6 +51,7 @@ git clone https://github.com/AichiroFunakoshi/keiba-prediction-lab.git
 cd keiba-prediction-lab
 python3 -m venv .venv
 source .venv/bin/activate
+python -m pip install -e .
 python -m unittest discover -s tests
 ```
 
@@ -72,8 +73,38 @@ python -m keiba_prediction_lab.cli init-input-templates --output local/race-inpu
 
 ### 2. 学習データを監査し、モデルを固定する
 
+すでにローカルへ保存済みの旧JSONスナップショットがある場合は、ネット取得処理と切り離して、共通CSVへ変換できます。この変換器は通信せず、馬・騎手・調教師を学習時と予測時で共通の正規化名IDへ変換します。以前の臨時運用で生じた「履歴は馬名、本番は馬番」というID尺度の不一致を防ぎます。
+
 ```bash
-python -m keiba_prediction_lab.cli audit-csv local/training.csv
+python -m keiba_prediction_lab.cli convert-local-history-snapshot \
+  local/raw/history.json \
+  --source-id local-private-snapshot \
+  --acquired-at 2026-08-23T08:30:00+09:00 \
+  --output local/converted-history
+```
+
+結果は`history.csv`、`training.csv`、入力ハッシュと仮定を記録した`snapshot-manifest.json`です。過去レースの`observed_at`と`result_known_at`は実測値ではなく、明示したオフセットによる保守的な代理時刻として記録されます。この`training.csv`は回顧的な初期基準評価用であり、実際に発走前固定したことの証拠にはしません。
+
+予測対象カードも、競馬場・コース種別ごとの馬場状態を別JSONで明示して、1レース1CSVへ変換できます。
+
+```json
+{"札幌:turf": "良", "札幌:dirt": "良", "default": "良"}
+```
+
+```bash
+python -m keiba_prediction_lab.cli convert-local-target-snapshot \
+  local/raw/cards.json local/raw/track-conditions.json \
+  --source-id local-private-snapshot \
+  --acquired-at 2026-08-23T08:30:00+09:00 \
+  --race-date 2026-08-23 \
+  --observed-at 2026-08-23T08:30:00+09:00 \
+  --output local/converted-targets
+```
+
+この機能は取得済みファイルを変換するだけです。外部サイトへのアクセス、利用権の承認、スクレイピング、再配布許諾を代行しません。元JSON、変換CSV、manifestはGitHubへコミットしません。
+
+```bash
+python -m keiba_prediction_lab.cli audit-training-csv local/training.csv
 python -m keiba_prediction_lab.cli prepare-training local/training.csv --output local/training.json
 python -m keiba_prediction_lab.cli train-model local/training.csv --output local/model.json
 ```
@@ -144,6 +175,40 @@ python -m keiba_prediction_lab.cli predict-race \
 
 出力ディレクトリが既に存在する場合は失敗し、事前予測を上書きしません。
 
+複数競馬場を含む開催日全体は、明示的な計画JSONから一括固定できます。各入力パスは計画JSONからの相対パスまたは絶対パスです。
+
+```json
+{
+  "schema_version": "1.0",
+  "race_date": "2026-08-30",
+  "races": [
+    {
+      "venue": "新潟",
+      "race_number": 1,
+      "targets": "converted-targets/targets/20260830-新潟-01.csv",
+      "pace_profiles": "pace/20260830-新潟-01.csv",
+      "pace_scenario": "pace/20260830-新潟-01.json"
+    }
+  ]
+}
+```
+
+```bash
+PYTHONPATH=src python -m keiba_prediction_lab.cli predict-race-day \
+  local/model.json local/history.csv local/race-day-plan.json \
+  --frozen-at 2026-08-30T09:00:00+09:00 \
+  --output outputs/2026-08-30
+
+PYTHONPATH=src python -m keiba_prediction_lab.cli audit-race-day \
+  outputs/2026-08-30
+
+PYTHONPATH=src python -m keiba_prediction_lab.cli serve-read-only-api \
+  --race-day-manifest outputs/2026-08-30/race-day.json \
+  --open-browser
+```
+
+全レースを先に検証し、1件でも不正なら出力ディレクトリを作りません。全件成功時だけ各予測バンドル、UI用`race-day.json`、開催日全体の`race-day-provenance.json`を原子的に保存します。全レースで同一のモデル・履歴・固定時刻・予測段階を強制し、開催日監査では各レースの入力来歴まで再照合します。
+
 ### 5. 保存内容を監査し、人間向けレポートを作る
 
 ```bash
@@ -154,6 +219,17 @@ python -m keiba_prediction_lab.cli report-prediction-bundle outputs/race-1 --out
 レポート生成時にも監査を行います。監査した同一のバイト列からレポートを作るため、監査後の読み直しによる差し替えを避けています。`--output`を省略するとMarkdownを標準出力へ表示します。レポートも既存ファイルを上書きしません。
 
 将来のローカルUIが使用する読み取り専用データは、次のコマンドで確認できます。指定した成果物を監査し、実購入候補と影予測、ウォークフォワード指標を構造化JSONで返します。ファイルの探索・保存・変更は行いません。
+
+まず画面だけを安全に確認したい場合は、実データを含まない12レース分の合成デモを生成して起動できます。`local/`はGit管理対象外で、既存フォルダは上書きしません。表示される確率・評価値はUI確認専用であり、実レースの予想や購入判断には使用できません。
+
+```bash
+python -m keiba_prediction_lab.cli init-ui-demo --output local/ui-demo
+python -m keiba_prediction_lab.cli serve-ui-demo local/ui-demo
+```
+
+2つ目のコマンドは既定ブラウザで`http://127.0.0.1:8765/`を開きます。自動で開かない場合はURLを手動で開いてください。終了はターミナルで`Control-C`です。すでにデモを生成済みなら、次回は`serve-ui-demo`だけを実行します。ブラウザを自動起動しない場合は`--no-open-browser`を付けます。
+
+macOSでは、リポジトリ直下の`open-ui-demo.command`をFinderでダブルクリックしても同じ画面を起動できます。初回だけ合成デモを自動生成し、2回目以降は保存済みデモを再監査して表示します。実行中はTerminalウインドウを閉じず、終了時はそのウインドウで`Control-C`を押します。仮想環境`.venv`がない場合や起動に失敗した場合は、原因を確認できるようTerminalを開いたまま停止します。
 
 ```bash
 python -m keiba_prediction_lab.cli inspect-app-state \
@@ -168,7 +244,8 @@ python -m keiba_prediction_lab.cli inspect-app-state \
 python -m keiba_prediction_lab.cli serve-read-only-api \
   --prediction-bundle outputs/race-1 \
   --walk-forward-report reports/walk-forward.json \
-  --win5-forecast outputs/win5-2026-08-30.json
+  --win5-forecast outputs/win5-2026-08-30.json \
+  --open-browser
 ```
 
 開催日の全レースを入口画面にまとめる場合は、開催日マニフェストを用意します。各`prediction_bundle`はマニフェストからの相対パスまたは絶対パスで明示し、画面側は全バンドルを監査してから競馬場タブと1R〜12Rの一覧を作ります。
@@ -275,6 +352,10 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 
 詳しくは [データ利用方針](docs/DATA_USAGE_POLICY.md) と [ローカルデータ契約](docs/LOCAL_DATA_ADAPTER.md) を参照してください。
 
+`fetch-jra-web`は、本人のMacでだけ動かす明示同意必須の実験経路として実装している。JRA公開ページはオープンデータではなく、`robots.txt`に拒否指定がないことも自動取得や二次利用の許諾を意味しない。利用者が実行前に最新条件を確認できない場合は使用しない。取得物は私的分析だけに使い、GitHubや第三者へ再配布しない。取得後は`prepare-jra-web-race-day`で、学習CSV、当日CSV、脚質、想定ペース、開催日計画を一括生成できる。手順は[JRA公式公開ページを使う無料ローカル運用](docs/JRA_WEB_WORKFLOW.md)を参照する。JRA-VAN Data Lab.は契約者向けの公式取得経路として残す。
+
+夜間取得後は`refresh-jra-web-race-day`で履歴を再利用しつつ、最初のレース前に馬体重、取消、馬場、単勝オッズを更新できる。独立予想の固定後は`build-market-guard`で市場との大幅乖離を研究用影成果物として記録できる。オッズはモデル確率や順位を変更しない。詳細は[市場乖離ガード](docs/MARKET_GUARD.md)を参照する。
+
 ## 設計資料
 
 - [プロジェクト申し送り](docs/HANDOFF.md)
@@ -286,6 +367,8 @@ python -m keiba_prediction_lab.cli diagnose-bet-type-segments reports/baseline.j
 - [予想固定と評価](docs/FROZEN_PREDICTIONS.md)
 - [三連単の条件付き確率と影予測](docs/TRIFECTA_PORTFOLIOS.md)
 - [脚質・想定ペースモデル](docs/PACE_MODEL.md)
+- [JRA-VAN Data Lab. ローカル取得](docs/JRA_VAN_WORKFLOW.md)
+- [JRA公式公開ページを使う無料ローカル運用](docs/JRA_WEB_WORKFLOW.md)
 - [三連単生成モデルの対応比較](docs/MODEL_COMPARISON.md)
 - [1レース予測パイプライン](docs/PIPELINE.md)
 - [全6馬券種の事前予測](docs/BET_TYPE_SHADOW_FORECASTS.md)
