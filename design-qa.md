@@ -13,7 +13,7 @@ The original captures were local QA artifacts and are not part of this repositor
 
 ## Full-view comparison evidence
 
-The implementation preserves the selected design's navy header, date and venue controls, dense 12-race ledger, blue probability emphasis, red trifecta treatment, and bottom WIN5 research panel. The earlier top-right first-race ticket is intentionally absent because the user subsequently removed it from the overview requirements. The Japanese product name is retained from the existing application rather than reverting to the English mock label.
+The implementation preserves the selected design's hierarchy, date and venue controls, dense 12-race ledger, red trifecta treatment, and bottom WIN5 research panel. The product palette now uses turf green for primary navigation and probability emphasis, earth brown for secondary structure, and warm ivory for reading surfaces. The earlier top-right first-race ticket is intentionally absent because the user subsequently removed it from the overview requirements. The RaceWeave product name remains consistent across the application and macOS bundle.
 
 ## Focused region comparison evidence
 
@@ -30,7 +30,7 @@ No actionable P0, P1, or P2 differences remain.
 
 - Fonts and typography: existing macOS Japanese system stack retained; hierarchy, weights, truncation, and numeric alignment remain consistent with the selected design.
 - Spacing and layout rhythm: 1488 x 1060 and 1440 x 900 fit without overflow. A compact desktop rule also fits 12 races and WIN5 at 1280 x 800 without horizontal or vertical overflow.
-- Colors and visual tokens: existing navy, blue probability, red official-ticket, green audit, and eight JRA frame colors are preserved.
+- Colors and visual tokens: turf green, earth brown, warm ivory, red official-ticket, and the eight standard frame colors are preserved as distinct semantic roles.
 - Image quality and assets: the screen contains no photographic or illustrative assets. No placeholder raster or generated image is required.
 - Copy and content: purchase candidate, zero-yen shadow status, WIN5 research status, and non-guarantee notice remain explicit.
 
@@ -46,6 +46,7 @@ No actionable P0, P1, or P2 differences remain.
    - Fix: reduced only the desktop toolbar and ledger row heights at short viewports, retaining every field and all 12 races.
    - Post-fix evidence: 1280 x 800 reports document height 800, body height 800, no horizontal overflow, 12 race rows, three venue tabs, and five WIN5 legs.
 4. Current interaction evidence: venue tabs switch with click and arrow keys; a race opens the audited detail; the detail shows the same horse number, name, frame color, and trifecta numbers; returning restores all 12 rows; browser console reported no warnings or errors from the application.
+5. Turf-and-earth brand refresh: the overview and detail were rechecked at the macOS app's 1440 x 960 default viewport. Turf green remains distinct from the eight frame colors, brown is limited to secondary structure, the red official ticket retains priority, and the complete detail including model validation fits without scrolling. The only browser console entry was the pre-existing missing decorative favicon; application scripts reported no warning or runtime error.
 
 ## Implementation checklist
 
