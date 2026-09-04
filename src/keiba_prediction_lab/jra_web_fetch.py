@@ -195,6 +195,16 @@ def _surface(text: str) -> str:
     raise ValueError(f"unsupported JRA surface: {text}")
 
 
+def _race_surface(contents, course_text: str) -> str:
+    """Classify the current race without matching past-race labels in the card."""
+    current_race_text = " ".join((
+        _class_text(contents, "race_name"),
+        _class_text(contents, "category"),
+        course_text,
+    ))
+    return _surface(current_race_text)
+
+
 def _card_identity(cname: str) -> tuple[str, int, str]:
     match = re.fullmatch(
         r"pw01dde(?:01|10)(?P<course>\d{2})20\d{6}(?P<race>\d{2})(?P<date>\d{8})/[A-Z0-9]+",
@@ -275,7 +285,7 @@ def parse_card(content: bytes, cname: str) -> dict:
         "race": race_number,
         "start": f"{start_match.group(1).zfill(2)}:{start_match.group(2)}",
         "distance": int(distance_match.group(1).replace(",", "")),
-        "surface": _surface(distance_match.group(2)),
+        "surface": _race_surface(contents, distance_match.group(2)),
         "horses": horses,
         "source_url": f"{CARD_ENDPOINT}?CNAME={cname}",
     }
@@ -345,7 +355,7 @@ def parse_result(content: bytes, url: str) -> dict:
         "race": race_number,
         "start": f"{start_match.group(1).zfill(2)}:{start_match.group(2)}",
         "distance": int(distance_match.group(1).replace(",", "")),
-        "surface": _surface(distance_match.group(2)),
+        "surface": _race_surface(contents, distance_match.group(2)),
         "track_condition": condition_match.group(1) if condition_match else "不明",
         "runners": pending,
         "result_url": url,

@@ -11,6 +11,7 @@ from keiba_prediction_lab.jra_web_fetch import (
     INFO_ENDPOINT,
     JraWebClient,
     fetch_jra_web_race_day,
+    parse_card,
     parse_track_conditions,
     parse_result,
     refresh_jra_web_race_day,
@@ -111,6 +112,26 @@ class JraWebWorkflowTest(unittest.TestCase):
         current = RESULT_URL.replace("pw01sde10", "pw01sde01")
         self.assertEqual(parse_result(_encoded(RESULT), RESULT_URL)["race"], 1)
         self.assertEqual(parse_result(_encoded(RESULT), current)["race"], 1)
+
+    def test_current_jump_race_is_not_misclassified_by_mixed_course(self) -> None:
+        jump_card = CARD.replace(
+            '<div id="contents">',
+            '<div id="contents"><span class="race_name">障害3歳以上オープン</span>',
+        ).replace("（芝・左）", "（芝→ダート）")
+        jump_result = RESULT.replace(
+            '<div id="contents">',
+            '<div id="contents"><span class="race_name">障害3歳以上オープン</span>',
+        ).replace("（芝・左）", "（芝→ダート）")
+
+        self.assertEqual(parse_card(_encoded(jump_card), CARD_CNAME)["surface"], "jump")
+        self.assertEqual(
+            parse_result(_encoded(jump_result), RESULT_URL)["surface"], "jump"
+        )
+
+    def test_past_jump_label_does_not_change_current_turf_surface(self) -> None:
+        card = CARD.replace("結果</a>", "障害未勝利</a>", 1)
+
+        self.assertEqual(parse_card(_encoded(card), CARD_CNAME)["surface"], "turf")
 
     def test_requires_explicit_private_use_acknowledgement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
