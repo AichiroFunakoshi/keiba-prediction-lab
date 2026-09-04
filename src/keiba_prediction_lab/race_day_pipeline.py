@@ -415,6 +415,7 @@ def build_and_save_local_race_day(
     frozen_at: datetime,
     phase: PredictionPhase = PredictionPhase.PRE_ODDS,
     place_payout_slots: int | None = None,
+    require_complete_body_weight: bool = False,
 ) -> LocalRaceDayOutput:
     """Validate every race, then atomically save a complete race-day snapshot."""
     if frozen_at.tzinfo is None or frozen_at.utcoffset() is None:
@@ -438,6 +439,7 @@ def build_and_save_local_race_day(
             frozen_at=frozen_at,
             phase=phase,
             place_payout_slots=place_payout_slots,
+            require_complete_body_weight=require_complete_body_weight,
         )
         actual = run.prediction.actual_prediction
         if actual.scheduled_at.date() != plan.race_date:

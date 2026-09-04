@@ -204,6 +204,7 @@ python -m keiba_prediction_lab.cli predict-race \
 PYTHONPATH=src python -m keiba_prediction_lab.cli predict-race-day \
   local/model.json local/history.csv local/race-day-plan.json \
   --frozen-at 2026-08-30T09:00:00+09:00 \
+  --require-complete-body-weight \
   --output outputs/2026-08-30
 
 PYTHONPATH=src python -m keiba_prediction_lab.cli audit-race-day \
@@ -214,7 +215,7 @@ PYTHONPATH=src python -m keiba_prediction_lab.cli serve-read-only-api \
   --open-browser
 ```
 
-全レースを先に検証し、1件でも不正なら出力ディレクトリを作りません。全件成功時だけ各予測バンドル、UI用`race-day.json`、開催日全体の`race-day-provenance.json`を原子的に保存します。全レースで同一のモデル・履歴・固定時刻・予測段階を強制し、開催日監査では各レースの入力来歴まで再照合します。
+全レースを先に検証し、1件でも不正なら出力ディレクトリを作りません。発走直前の正式固定では`--require-complete-body-weight`を指定すると、1頭でも当日馬体重が欠けた開催日全体を保存前に拒否できます。夜間など馬体重発表前の研究予測ではこのオプションを省略します。全件成功時だけ各予測バンドル、UI用`race-day.json`、開催日全体の`race-day-provenance.json`を原子的に保存します。全レースで同一のモデル・履歴・固定時刻・予測段階を強制し、開催日監査では各レースの入力来歴まで再照合します。
 
 ### 5. 保存内容を監査し、人間向けレポートを作る
 

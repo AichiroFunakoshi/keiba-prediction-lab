@@ -186,6 +186,7 @@ def build_local_race_prediction(
     frozen_at: datetime,
     phase: PredictionPhase = PredictionPhase.PRE_ODDS,
     place_payout_slots: int | None = None,
+    require_complete_body_weight: bool = False,
 ) -> LocalPipelineRun:
     """Build one formal prediction from immutable snapshots of all local inputs."""
     if frozen_at.tzinfo is None or frozen_at.utcoffset() is None:
@@ -202,6 +203,17 @@ def build_local_race_prediction(
         targets_path,
         prior_strength=artifact.parameters.prior_strength,
     )
+    if require_complete_body_weight:
+        missing_body_weight = tuple(
+            row.horse_id
+            for row in features.features
+            if row.body_weight_kg is None
+        )
+        if missing_body_weight:
+            raise ValueError(
+                "complete body weight is required for final prediction: "
+                f"missing {len(missing_body_weight)}/{len(features.features)} runners"
+            )
     if features.history_row_count < 1:
         raise ValueError("formal prediction requires at least one history row")
     profiles = _load_pace_profiles_bytes(profile_content, profile_source.name)
