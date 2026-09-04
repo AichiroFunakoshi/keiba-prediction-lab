@@ -176,6 +176,37 @@ class RaceDayPipelineTest(unittest.TestCase):
 
             self.assertFalse(output.exists())
 
+    def test_final_gate_rejects_missing_weight_without_partial_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model, history, plan = _race_day_files(root)
+            targets = root / "targets-2.csv"
+            with targets.open(encoding="utf-8", newline="") as handle:
+                reader = csv.DictReader(handle)
+                fieldnames = reader.fieldnames
+                rows = list(reader)
+            rows[-1]["body_weight_kg"] = ""
+            targets.unlink()
+            with targets.open("x", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+            output = root / "output"
+
+            with self.assertRaisesRegex(ValueError, "missing 1/5 runners"):
+                build_and_save_local_race_day(
+                    model,
+                    history,
+                    plan,
+                    output,
+                    frozen_at=datetime.fromisoformat(
+                        "2026-02-01T10:05:00+09:00"
+                    ),
+                    require_complete_body_weight=True,
+                )
+
+            self.assertFalse(output.exists())
+
     def test_audit_rejects_changed_race_day_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

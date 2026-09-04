@@ -88,8 +88,11 @@ keiba-lab predict-race-day \
   local/jra-web/20260830-morning-prepared/history/history.csv \
   local/jra-web/20260830-morning-prepared/race-day-plan.json \
   --frozen-at 'prepared-manifest.jsonに記録されたobserved_at' \
+  --require-complete-body-weight \
   --output local/jra-web/20260830-predictions
 ```
+
+`--require-complete-body-weight`は発走直前の正式固定用である。1頭でも当日馬体重が欠ける場合は開催日全体を保存前に拒否する。馬体重発表前の夜間研究予測では省略し、直前更新後の固定時に指定する。
 
 独立予想を固定した後、オッズをモデル入力へ混ぜずに市場乖離だけを別途監査できる。詳細は[市場乖離ガード](MARKET_GUARD.md)を参照する。
 

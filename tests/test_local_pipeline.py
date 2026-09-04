@@ -153,6 +153,7 @@ class LocalPipelineTest(unittest.TestCase):
                 exit_code = main([
                     "audit-race-inputs", *(str(path) for path in paths),
                     "--frozen-at", "2026-02-01T10:05:00+09:00",
+                    "--require-complete-body-weight",
                 ])
             report = json.loads(stdout.getvalue())
 
@@ -161,6 +162,45 @@ class LocalPipelineTest(unittest.TestCase):
         self.assertFalse(report["prediction_saved"])
         self.assertEqual(report["runner_count"], 5)
         self.assertNotIn("actual_ticket", report)
+
+    def test_final_input_audit_rejects_missing_body_weight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = list(_files(root))
+            rows = _target_rows()
+            rows[2]["body_weight_kg"] = ""
+            _write_csv(paths[2], TARGET_COLUMNS, rows)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([
+                    "audit-race-inputs", *(str(path) for path in paths),
+                    "--frozen-at", "2026-02-01T10:05:00+09:00",
+                    "--require-complete-body-weight",
+                ])
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(report["is_valid"])
+        self.assertIn("missing 1/5 runners", report["error"])
+
+    def test_preliminary_prediction_still_allows_missing_body_weight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = list(_files(root))
+            rows = _target_rows()
+            for row in rows:
+                row["body_weight_kg"] = ""
+            _write_csv(paths[2], TARGET_COLUMNS, rows)
+
+            run = build_local_race_prediction(
+                *paths,
+                frozen_at=datetime.fromisoformat(
+                    "2026-02-01T10:05:00+09:00"
+                ),
+            )
+
+        self.assertEqual(run.prediction.actual_prediction.race_id, "target-1")
 
     def test_cli_audit_returns_structured_invalid_result(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -209,6 +249,7 @@ class LocalPipelineTest(unittest.TestCase):
                     "predict-race", str(model), str(history), str(targets),
                     str(profiles), str(scenario),
                     "--frozen-at", "2026-02-01T10:05:00+09:00",
+                    "--require-complete-body-weight",
                     "--output", str(output),
                 ])
             summary = json.loads(stdout.getvalue())

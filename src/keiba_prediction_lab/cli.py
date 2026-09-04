@@ -242,6 +242,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=PredictionPhase.PRE_ODDS.value,
     )
     predict_race.add_argument("--place-payout-slots", type=int)
+    predict_race.add_argument(
+        "--require-complete-body-weight",
+        action="store_true",
+        help="reject final prediction when any runner body weight is missing",
+    )
     predict_race.add_argument("--output", type=Path, required=True)
 
     predict_race_day = subparsers.add_parser(
@@ -257,6 +262,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=PredictionPhase.PRE_ODDS.value,
     )
     predict_race_day.add_argument("--place-payout-slots", type=int)
+    predict_race_day.add_argument(
+        "--require-complete-body-weight",
+        action="store_true",
+        help="reject the whole race day when any runner body weight is missing",
+    )
     predict_race_day.add_argument("--output", type=Path, required=True)
 
     audit_race_day = subparsers.add_parser(
@@ -309,6 +319,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=PredictionPhase.PRE_ODDS.value,
     )
     audit_race.add_argument("--place-payout-slots", type=int)
+    audit_race.add_argument(
+        "--require-complete-body-weight",
+        action="store_true",
+        help="reject inputs when any runner body weight is missing",
+    )
 
     audit_bundle = subparsers.add_parser(
         "audit-prediction-bundle",
@@ -822,6 +837,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             frozen_at=datetime.fromisoformat(args.frozen_at),
             phase=PredictionPhase(args.phase),
             place_payout_slots=args.place_payout_slots,
+            require_complete_body_weight=args.require_complete_body_weight,
         )
         manifest = save_local_pipeline_run(run, args.output)
         actual = run.prediction.actual_prediction
@@ -847,6 +863,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 frozen_at=datetime.fromisoformat(args.frozen_at),
                 phase=PredictionPhase(args.phase),
                 place_payout_slots=args.place_payout_slots,
+                require_complete_body_weight=args.require_complete_body_weight,
             )
         except (OSError, ValueError, UnicodeError) as error:
             print(json.dumps({
@@ -966,6 +983,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 frozen_at=datetime.fromisoformat(args.frozen_at),
                 phase=PredictionPhase(args.phase),
                 place_payout_slots=args.place_payout_slots,
+                require_complete_body_weight=args.require_complete_body_weight,
             )
         except (OSError, ValueError, UnicodeError) as error:
             print(json.dumps({
