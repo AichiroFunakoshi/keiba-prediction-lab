@@ -26,7 +26,7 @@
 - Python: 3.11以上
 - 外部Python依存: `lxml>=5,<7`
 - CI: Python 3.11、3.12、3.13
-- この申し送り直前の完了PR: `#47 300〜500レースの固定評価範囲を強制`
+- 現在の`main`には、固定評価範囲、RaceWeave読み取り専用アプリ、発走直前の馬体重完全性ゲートを含む。PR番号ではなく`origin/main`のHEADを正とする
 
 現在の段階は[開発ロードマップ](ROADMAP.md)を正とする。概要は次のとおり。
 
@@ -273,7 +273,7 @@ LightGBMなどの表形式モデルは、実データの基準評価が得られ
 
 macOSのFinderからは、リポジトリ直下の実行可能ファイル`open-ui-demo.command`をダブルクリックして合成デモを起動できる。ランチャーはリポジトリ内の`.venv`だけを使用し、初回デモ生成後に既存の`serve-ui-demo`へ処理を渡す。予測計算、監査、HTTP配信をシェルへ複製しない。
 
-読み取り専用UIはRaceWeave（レースウィーヴ）というmacOSアプリにも包装できる。`python -m pip install -e '.[desktop]'`後に`build-raceweave-app.command`を実行し、Git除外済みの`dist/RaceWeave.app`を生成する。個人利用版はad-hoc署名を検証するが、Developer ID署名と公証は未実施である。Finder起動時はApplication Support内の合成デモだけを表示し、実データをアプリやGitHubへ同梱しない。実成果物は当面`raceweave`コマンドで明示指定する。詳細は[macOSアプリ手順](DESKTOP_APP.md)を参照する。
+読み取り専用UIはRaceWeave（レースウィーヴ）というmacOSアプリにも包装できる。`python -m pip install -e '.[desktop]'`後に`build-raceweave-app.command`を実行し、Git除外済みの`dist/RaceWeave.app`を生成する。個人利用版はad-hoc署名を検証するが、Developer ID署名と公証は未実施である。Finder起動時は`race-day.json`を選択し、隣接する開催日来歴と全予測バンドルを再監査して表示する。キャンセル時だけ合成デモを表示し、実データをアプリやGitHubへ同梱しない。詳細は[macOSアプリ手順](DESKTOP_APP.md)を参照する。
 
 ## 9. 現在の既知の限界
 
@@ -300,5 +300,7 @@ macOSのFinderからは、リポジトリ直下の実行可能ファイル`open-
 - [ ] 作業ブランチを作成した
 - [ ] 変更の完了条件と検証方法を先に決めた
 - [ ] PRの全CIとレビュー状態を確認してからマージする
+
+別Macへ移る直前と移った直後の短い実行順、ローカル成果物の移送境界、RaceWeaveの再ビルド手順は[Mac間継続手順](MAC_HANDOFF.md)にまとめた。この文書の原則と食い違う場合は本書を優先する。
 
 この文書と実装が食い違う場合は、推測で進めず、`main`のコード、テスト、プロジェクト原則、データ利用方針を照合して差異を明示する。

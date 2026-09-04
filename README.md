@@ -249,7 +249,7 @@ python -m pip install -e '.[desktop]'
 ./build-raceweave-app.command
 ```
 
-Finderから起動した初期版は、`~/Library/Application Support/RaceWeave/ui-demo-v1`に合成デモを一度だけ作り、起動ごとに再監査して表示します。実成果物を専用ウインドウで確認する方法、Developer ID未署名の個人利用版の範囲、公開してよいファイルは[macOSアプリ手順](docs/DESKTOP_APP.md)を参照してください。
+Finderから起動するとmacOS標準の選択画面が開きます。保存済み開催日の`race-day.json`を選ぶと、隣接する`race-day-provenance.json`と全予測バンドルを開催日単位で再監査してから表示します。選択をキャンセルした場合だけ、`~/Library/Application Support/RaceWeave/ui-demo-v1`の合成デモを一度だけ生成して表示します。選択パスは保存せず、実成果物も変更・複製しません。Developer ID未署名の個人利用版の範囲、公開してよいファイルは[macOSアプリ手順](docs/DESKTOP_APP.md)を参照してください。
 
 ```bash
 python -m keiba_prediction_lab.cli inspect-app-state \

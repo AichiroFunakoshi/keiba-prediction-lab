@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Sequence
 
 from .app_snapshot import ReadOnlyAppSnapshot, build_read_only_app_snapshot
 from .local_http import LOOPBACK_HOST, create_read_only_server
+from .race_day_pipeline import audit_local_race_day
 from .ui_demo import create_ui_demo, load_ui_demo
 
 
@@ -20,6 +22,22 @@ APP_NAME_JA = "レースウィーヴ"
 APP_IDENTIFIER = "jp.aichiro.raceweave"
 DEFAULT_WINDOW_SIZE = (1440, 960)
 MINIMUM_WINDOW_SIZE = (1051, 720)
+
+
+_RACE_DAY_CHOOSER_SCRIPT = """\
+try
+    set selectedFile to choose file with prompt "監査して表示する race-day.json を選択してください。キャンセルすると合成デモを開きます。"
+    return POSIX path of selectedFile
+on error number -128
+    return ""
+end try
+"""
+
+_ERROR_ALERT_SCRIPT = """\
+on run argv
+    display alert "RaceWeaveを起動できません" message (item 1 of argv) as critical
+end run
+"""
 
 
 def default_demo_directory(home: str | Path | None = None) -> Path:
@@ -38,6 +56,58 @@ def load_or_create_demo_snapshot(directory: str | Path) -> ReadOnlyAppSnapshot:
         race_day_manifest=demo.race_day_manifest,
         walk_forward_report=demo.walk_forward_report,
     )
+
+
+def choose_race_day_manifest() -> Path | None:
+    """Ask macOS for one local race-day manifest without retaining its path."""
+    if sys.platform != "darwin":
+        return None
+    completed = subprocess.run(
+        ["/usr/bin/osascript", "-e", _RACE_DAY_CHOOSER_SCRIPT],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    selected = completed.stdout.strip()
+    return Path(selected) if selected else None
+
+
+def _show_native_error(message: str) -> None:
+    """Show a Finder-visible error without interpolating it into AppleScript."""
+    if sys.platform != "darwin":
+        return
+    try:
+        subprocess.run(
+            ["/usr/bin/osascript", "-e", _ERROR_ALERT_SCRIPT, message],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        pass
+
+
+def load_audited_race_day_snapshot(
+    manifest: str | Path,
+    *,
+    walk_forward_report: str | Path | None = None,
+    win5_forecast: str | Path | None = None,
+) -> ReadOnlyAppSnapshot:
+    """Re-audit a complete race day before exposing it to the desktop UI."""
+    selected = Path(manifest)
+    if selected.is_dir():
+        selected = selected / "race-day.json"
+    if selected.name != "race-day.json":
+        raise ValueError("開催日成果物の race-day.json を選択してください")
+    audit_local_race_day(selected.parent)
+    snapshot = build_read_only_app_snapshot(
+        race_day_manifest=selected,
+        walk_forward_report=walk_forward_report,
+        win5_forecast=win5_forecast,
+    )
+    # Detect changes that occurred while the display snapshot was assembled.
+    audit_local_race_day(selected.parent)
+    return snapshot
 
 
 def _load_webview() -> ModuleType:
@@ -104,17 +174,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.demo_directory is not None:
             snapshot = load_or_create_demo_snapshot(args.demo_directory)
         elif any(artifact_paths):
-            snapshot = build_read_only_app_snapshot(
-                prediction_directory=args.prediction_bundle,
-                walk_forward_report=args.walk_forward_report,
-                win5_forecast=args.win5_forecast,
-                race_day_manifest=args.race_day_manifest,
-            )
+            if args.race_day_manifest is not None:
+                if args.prediction_bundle is not None:
+                    parser.error(
+                        "--race-day-manifestと--prediction-bundleは同時に使えません"
+                    )
+                snapshot = load_audited_race_day_snapshot(
+                    args.race_day_manifest,
+                    walk_forward_report=args.walk_forward_report,
+                    win5_forecast=args.win5_forecast,
+                )
+            else:
+                snapshot = build_read_only_app_snapshot(
+                    prediction_directory=args.prediction_bundle,
+                    walk_forward_report=args.walk_forward_report,
+                    win5_forecast=args.win5_forecast,
+                )
         else:
-            snapshot = load_or_create_demo_snapshot(default_demo_directory())
+            selected = choose_race_day_manifest()
+            snapshot = (
+                load_audited_race_day_snapshot(selected)
+                if selected is not None
+                else load_or_create_demo_snapshot(default_demo_directory())
+            )
         run_desktop_window(snapshot)
-    except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+    except (
+        OSError,
+        RuntimeError,
+        ValueError,
+        UnicodeError,
+        subprocess.SubprocessError,
+    ) as error:
         print(f"{APP_NAME}を起動できません: {error}", file=sys.stderr)
+        _show_native_error(str(error))
         return 1
     return 0
 
