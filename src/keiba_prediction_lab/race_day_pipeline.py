@@ -376,13 +376,16 @@ def audit_local_race_day(directory: str | Path) -> LocalRaceDayAudit:
                 display_ids: set[str] = set()
                 horse_numbers: set[int] = set()
                 for item in raw_display:
-                    if not isinstance(item, dict) or set(item) != {
-                        "horse_id", "horse_number", "horse_name"
-                    }:
+                    legacy_keys = {"horse_id", "horse_number", "horse_name"}
+                    if (
+                        not isinstance(item, dict)
+                        or set(item) not in (legacy_keys, legacy_keys | {"frame_number"})
+                    ):
                         raise ValueError("invalid runner_display entry")
                     horse_id = item["horse_id"]
                     horse_number = item["horse_number"]
                     horse_name = item["horse_name"]
+                    frame_number = item.get("frame_number")
                     if (
                         not isinstance(horse_id, str)
                         or horse_id not in predicted_ids
@@ -397,6 +400,10 @@ def audit_local_race_day(directory: str | Path) -> LocalRaceDayAudit:
                         raise ValueError("runner_display horse_number is invalid")
                     if not isinstance(horse_name, str) or not horse_name.strip():
                         raise ValueError("runner_display horse_name is invalid")
+                    if frame_number is not None and (
+                        type(frame_number) is not int or not 1 <= frame_number <= 8
+                    ):
+                        raise ValueError("runner_display frame_number is invalid")
                     display_ids.add(horse_id)
                     horse_numbers.add(horse_number)
                 if display_ids != predicted_ids:
@@ -503,6 +510,7 @@ def build_and_save_local_race_day(
                         "horse_id": row.horse_id,
                         "horse_number": row.horse_number,
                         "horse_name": row.horse_name,
+                        "frame_number": row.frame_number,
                     }
                     for row in run.runner_display
                 ],

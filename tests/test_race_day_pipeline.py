@@ -125,6 +125,7 @@ class RaceDayPipelineTest(unittest.TestCase):
         display = manifest_payload["venues"][0]["races"][0]["runner_display"]
         self.assertEqual(len(display), 5)
         self.assertEqual(display[0], {
+            "frame_number": 1,
             "horse_id": "horse-1",
             "horse_number": 1,
             "horse_name": "horse-1",

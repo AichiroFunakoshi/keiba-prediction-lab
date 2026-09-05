@@ -17,14 +17,19 @@ from types import ModuleType
 from typing import Sequence
 
 from .app_snapshot import (
+    PredictionAppSnapshot,
     ReadOnlyAppSnapshot,
     RunnerDisplayAppSnapshot,
+    RunnerSnapshot,
+    ShadowPortfolioSnapshot,
     build_read_only_app_snapshot,
 )
 from .bundle_audit import load_audited_prediction_bundle
+from .frame import jra_frame_number
 from .local_http import LOOPBACK_HOST, create_read_only_server
 from .local_adapter import load_targets_csv_bytes
 from .race_day_pipeline import audit_local_race_day
+from .market_blend import load_market_blend_forecast
 from .ui_demo import create_ui_demo, load_ui_demo
 
 
@@ -108,7 +113,8 @@ def adjacent_related_artifacts(
     """Resolve optional audited UI companions only from the selected day folder."""
     root = Path(manifest).parent
     walk_forward = root / "walk-forward.json"
-    win5 = root / "win5.json"
+    revised_win5 = root / "win5-market-blend.json"
+    win5 = revised_win5 if revised_win5.is_file() else root / "win5.json"
     return (
         walk_forward if walk_forward.is_file() and not walk_forward.is_symlink() else None,
         win5 if win5.is_file() and not win5.is_symlink() else None,
@@ -150,6 +156,10 @@ def verified_runner_display_by_race(
                         horse_id=row.horse_id,
                         horse_number=row.post_position,
                         horse_name=row.horse_id.removeprefix("horse:name:"),
+                        frame_number=jra_frame_number(
+                            row.post_position,
+                            max(item.post_position for item in targets),
+                        ),
                     )
                     for row in sorted(targets, key=lambda item: item.post_position)
                 )
@@ -180,6 +190,49 @@ def _with_verified_runner_display(
         for venue in snapshot.race_day.venues
     )
     return replace(snapshot, race_day=replace(snapshot.race_day, venues=venues))
+
+
+def _with_market_blend(
+    snapshot: ReadOnlyAppSnapshot,
+    market_blend_path: str | Path | None,
+    race_day_manifest: str | Path,
+) -> ReadOnlyAppSnapshot:
+    """Overlay only integrity-checked post-odds races on the read-only view."""
+    if market_blend_path is None or snapshot.race_day is None:
+        return snapshot
+    forecast = load_market_blend_forecast(market_blend_path)
+    manifest_content = Path(race_day_manifest).read_bytes()
+    if hashlib.sha256(manifest_content).hexdigest() != forecast.race_day_manifest_sha256:
+        raise ValueError("市場混合予測と開催日マニフェストが一致しません")
+    blend_by_race = {race.race_id: race for race in forecast.races}
+    venues = []
+    for venue in snapshot.race_day.venues:
+        races = []
+        for race in venue.races:
+            blended = blend_by_race.get(race.prediction.race_id)
+            if blended is None:
+                races.append(race)
+                continue
+            prediction = PredictionAppSnapshot(
+                race_id=blended.race_id,
+                scheduled_at=blended.scheduled_at.isoformat(),
+                frozen_at=forecast.observed_at.isoformat(),
+                model_version=blended.model_version,
+                input_data_version=blended.input_data_version,
+                runners=tuple(RunnerSnapshot(
+                    row.predicted_rank, row.horse_id, row.blended_probability,
+                    row.top3_probability,
+                ) for row in blended.runners),
+                actual_selection=blended.trifecta_selection,
+                actual_stake_yen=100,
+                shadow_portfolios=tuple(ShadowPortfolioSnapshot(
+                    "baseline", strategy, ticket_count, probability
+                ) for strategy, ticket_count, probability in blended.shadow_portfolios),
+                bet_type_candidates=(),
+            )
+            races.append(replace(race, prediction=prediction))
+        venues.append(replace(venue, races=tuple(races)))
+    return replace(snapshot, race_day=replace(snapshot.race_day, venues=tuple(venues)))
 
 
 def load_or_create_demo_snapshot(directory: str | Path) -> ReadOnlyAppSnapshot:
@@ -229,6 +282,7 @@ def load_audited_race_day_snapshot(
     walk_forward_report: str | Path | None = None,
     win5_forecast: str | Path | None = None,
     runner_display_search_root: str | Path | None = None,
+    market_blend_forecast: str | Path | None = None,
 ) -> ReadOnlyAppSnapshot:
     """Re-audit a complete race day before exposing it to the desktop UI."""
     selected = Path(manifest)
@@ -246,6 +300,7 @@ def load_audited_race_day_snapshot(
         snapshot,
         verified_runner_display_by_race(selected, runner_display_search_root),
     )
+    snapshot = _with_market_blend(snapshot, market_blend_forecast, selected)
     # Detect changes that occurred while the display snapshot was assembled.
     audit_local_race_day(selected.parent)
     return snapshot
@@ -376,6 +431,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     walk_forward_report=walk_forward,
                     win5_forecast=win5,
                     runner_display_search_root=local_directory,
+                    market_blend_forecast=(
+                        selected.parent / "market-blend.json"
+                        if (selected.parent / "market-blend.json").is_file()
+                        else None
+                    ),
                 )
             else:
                 snapshot = load_or_create_demo_snapshot(default_demo_directory())

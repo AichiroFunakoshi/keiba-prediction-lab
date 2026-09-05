@@ -79,15 +79,17 @@ button, table { font: inherit; }
 .winner-mark.frame-6 { color: #fff; background: #27944f; }
 .winner-mark.frame-7 { color: #17233a; background: #ee9417; }
 .winner-mark.frame-8 { color: #17233a; background: #ed7294; }
-.horse-number.frame-1, .runner-number.frame-1 { border: 1px solid #9ca7b5; color: #14243b; background: #fff; }
-.horse-number.frame-2, .runner-number.frame-2 { color: #fff; background: #171717; }
-.horse-number.frame-3, .runner-number.frame-3 { color: #fff; background: #e53935; }
-.horse-number.frame-4, .runner-number.frame-4 { color: #fff; background: #1769c2; }
-.horse-number.frame-5, .runner-number.frame-5 { color: #17233a; background: #f4d318; }
-.horse-number.frame-6, .runner-number.frame-6 { color: #fff; background: #27944f; }
-.horse-number.frame-7, .runner-number.frame-7 { color: #17233a; background: #ee9417; }
-.horse-number.frame-8, .runner-number.frame-8 { color: #17233a; background: #ed7294; }
+.horse-number.frame-1, .runner-number.frame-1, .ticket-number.frame-1, .compact-number.frame-1 { border: 1px solid #9ca7b5; color: #14243b; background: #fff; }
+.horse-number.frame-2, .runner-number.frame-2, .ticket-number.frame-2, .compact-number.frame-2 { color: #fff; background: #171717; }
+.horse-number.frame-3, .runner-number.frame-3, .ticket-number.frame-3, .compact-number.frame-3 { color: #fff; background: #e53935; }
+.horse-number.frame-4, .runner-number.frame-4, .ticket-number.frame-4, .compact-number.frame-4 { color: #fff; background: #1769c2; }
+.horse-number.frame-5, .runner-number.frame-5, .ticket-number.frame-5, .compact-number.frame-5 { color: #17233a; background: #f4d318; }
+.horse-number.frame-6, .runner-number.frame-6, .ticket-number.frame-6, .compact-number.frame-6 { color: #fff; background: #27944f; }
+.horse-number.frame-7, .runner-number.frame-7, .ticket-number.frame-7, .compact-number.frame-7 { color: #17233a; background: #ee9417; }
+.horse-number.frame-8, .runner-number.frame-8, .ticket-number.frame-8, .compact-number.frame-8 { color: #17233a; background: #ed7294; }
 .ledger-probability { color: #1f6a45; font-size: 16px; font-variant-numeric: tabular-nums; }
+.ledger-probability-wrap { display: grid; gap: 2px; }
+.ledger-probability-wrap small { color: var(--muted); font-size: 10px; font-weight: 650; }
 .ledger-ticket .compact-number { min-width: 34px; padding: 3px 6px; }
 .detail-link { color: #1f6a45; font-weight: 700; text-align: right; }
 .dashboard-win5 { margin-top: 14px; padding: 11px 16px; }

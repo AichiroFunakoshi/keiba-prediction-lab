@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .frozen import PredictionPhase
+from .frame import jra_frame_number
 from .local_adapter import build_local_feature_bundle
 from .model_artifact import load_trained_model_artifact_bytes
 from .pace import (
@@ -42,6 +43,7 @@ class LocalRunnerDisplay:
     horse_id: str
     horse_number: int
     horse_name: str
+    frame_number: int
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,8 @@ class LocalPipelineRun:
             raise ValueError("runner display must identify every predicted runner")
         if len(horse_numbers) != len(self.runner_display):
             raise ValueError("runner display horse numbers must be unique")
+        if any(not 1 <= row.frame_number <= 8 for row in self.runner_display):
+            raise ValueError("runner display frame numbers must be from 1 to 8")
 
 
 def _horse_display_name(horse_id: str) -> str:
@@ -281,6 +285,10 @@ def build_local_race_prediction(
                 horse_id=row.horse_id,
                 horse_number=row.post_position,
                 horse_name=_horse_display_name(row.horse_id),
+                frame_number=jra_frame_number(
+                    row.post_position,
+                    max(item.post_position for item in features.features),
+                ),
             )
             for row in features.features
         ),
