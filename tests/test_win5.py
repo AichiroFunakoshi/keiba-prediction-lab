@@ -8,8 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from keiba_prediction_lab.win5 import (
+    WIN5_MARKET_BLEND_GENERATOR_VERSION,
     Win5Leg,
     Win5Runner,
+    build_market_blend_win5_forecast,
     build_win5_forecast,
     build_win5_forecast_from_legs,
     load_win5_forecast,
@@ -39,6 +41,44 @@ def _legs() -> tuple[Win5Leg, ...]:
 
 
 class Win5ForecastTest(unittest.TestCase):
+    def test_builds_market_blend_win5_from_exact_races(self) -> None:
+        legs = _legs()
+        races = tuple(
+            SimpleNamespace(
+                race_id=leg.race_id,
+                scheduled_at=leg.scheduled_at,
+                model_version="market-v1",
+                input_data_version=leg.input_data_version,
+                runners=tuple(
+                    SimpleNamespace(
+                        horse_id=row.horse_id,
+                        blended_probability=row.win_probability,
+                    )
+                    for row in leg.runners
+                ),
+            )
+            for leg in legs
+        )
+        blend = SimpleNamespace(
+            observed_at=datetime(2026, 8, 30, 13, 0, tzinfo=JST),
+            races=races,
+        )
+        with patch(
+            "keiba_prediction_lab.win5.load_market_blend_forecast",
+            return_value=blend,
+        ):
+            forecast = build_market_blend_win5_forecast(
+                Path("market-blend.json"),
+                [leg.race_id for leg in reversed(legs)],
+            )
+
+        self.assertEqual(
+            forecast.generator_version,
+            WIN5_MARKET_BLEND_GENERATOR_VERSION,
+        )
+        self.assertEqual(forecast.selection[0], "winner-1")
+        self.assertEqual(forecast.stake_yen, 0)
+
     def test_builds_from_five_audited_bundle_results(self) -> None:
         legs = _legs()
         audited = [

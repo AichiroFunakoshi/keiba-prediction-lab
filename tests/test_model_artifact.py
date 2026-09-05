@@ -90,6 +90,31 @@ class ModelArtifactTest(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(summary["training_row_count"], 9)
         self.assertEqual(summary["trained_through"], "2026-01-15T10:00:00+09:00")
+        self.assertIsNone(summary["calibrated_through"])
+
+    def test_time_separated_calibrated_model_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            output = root / "model.json"
+            _write_training(training)
+            artifact = train_local_model_artifact(
+                training,
+                parameters=ModelTrainingParameters(epochs=5, calibration_races=1),
+            )
+            save_trained_model_artifact(artifact, output)
+            loaded = load_trained_model_artifact(output)
+
+        self.assertEqual(loaded, artifact)
+        self.assertEqual(loaded.parameters.calibration_races, 1)
+        self.assertEqual(
+            loaded.model.calibrated_through.isoformat(),
+            "2026-01-15T10:00:00+09:00",
+        )
+        self.assertEqual(
+            loaded.model.trained_through.isoformat(),
+            "2026-01-08T10:00:00+09:00",
+        )
 
     def test_same_input_and_parameters_produce_same_payload_digest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -107,6 +132,44 @@ class ModelArtifactTest(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(first_digest, second_digest)
+
+    def test_loads_legacy_uncalibrated_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            output = root / "model.json"
+            _write_training(training)
+            artifact = train_local_model_artifact(
+                training, parameters=ModelTrainingParameters(epochs=5)
+            )
+            save_trained_model_artifact(artifact, output)
+            envelope = json.loads(output.read_text(encoding="utf-8"))
+            envelope["schema_version"] = "1.0"
+            del envelope["payload"]["parameters"]["calibration_races"]
+            canonical = json.dumps(
+                envelope["payload"], ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"),
+            )
+            envelope["sha256"] = hashlib.sha256(canonical.encode()).hexdigest()
+            output.write_text(json.dumps(envelope), encoding="utf-8")
+
+            loaded = load_trained_model_artifact(output)
+
+        self.assertEqual(loaded.parameters.calibration_races, 0)
+        self.assertEqual(loaded.model.model_version, "conditional-logit-v1")
+
+    def test_calibration_must_leave_training_races(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            training = Path(directory) / "training.csv"
+            _write_training(training)
+
+            with self.assertRaisesRegex(ValueError, "leave at least one"):
+                train_local_model_artifact(
+                    training,
+                    parameters=ModelTrainingParameters(
+                        epochs=5, calibration_races=3
+                    ),
+                )
 
     def test_rejects_payload_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

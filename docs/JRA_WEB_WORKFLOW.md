@@ -77,8 +77,17 @@ keiba-lab audit-training-csv local/jra-web/20260830-morning-prepared/history/tra
 
 keiba-lab train-model \
   local/jra-web/20260830-morning-prepared/history/training.csv \
+  --calibration-races 60 \
   --output local/jra-web/20260830-model.json
 ```
+
+`--calibration-races`は時系列末尾の指定レース数を係数学習から分離し、
+温度スケーリング専用に使う。単一開催日の結果に合わせるのではなく、学習期間より後、
+予測対象より前の固定期間だけで確率の過信を補正する。
+
+市場混合版の対象5レースが公式WIN5の順序と一致することを確認した後は、
+`predict-market-blend-win5`でオッズ参照後の0円影予測を固定できる。
+RaceWeaveは同じ開催日ディレクトリの`win5-market-blend.json`を優先表示する。
 
 `prepared-manifest.json`の`observed_at`を、発走前固定時刻と一致させて予測する。
 
