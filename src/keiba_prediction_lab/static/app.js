@@ -4,6 +4,13 @@ const byId = (id) => document.getElementById(id);
 let currentState = null;
 let selectedVenueIndex = 0;
 const percent = (value) => `${(value * 100).toFixed(1)}%`;
+const smallPercent = (value) => {
+  const percentage = value * 100;
+  if (percentage === 0) return "0%";
+  if (percentage < 0.01) return `${percentage.toFixed(3)}%`;
+  if (percentage < 0.1) return `${percentage.toFixed(2)}%`;
+  return `${percentage.toFixed(1)}%`;
+};
 const dateTime = (value) => value ? new Intl.DateTimeFormat("ja-JP", {
   dateStyle: "medium", timeStyle: "short"
 }).format(new Date(value)) : "—";
@@ -296,7 +303,7 @@ function renderWin5(win5, raceDay = null) {
     item.append(node("b", "", percent(leg.selected_win_probability)));
     legs.append(item);
   });
-  byId("win5-probability").textContent = percent(win5.joint_probability);
+  byId("win5-probability").textContent = smallPercent(win5.joint_probability);
   byId("win5-assumption").textContent = win5.independence_assumption;
 }
 
