@@ -91,7 +91,7 @@ class RunnerDisplayAppSnapshot:
     horse_id: str
     horse_number: int
     horse_name: str
-    frame_number: int
+    frame_number: int | None = None
 
 
 @dataclass(frozen=True)
@@ -306,14 +306,17 @@ def _race_day_snapshot(path: str | Path) -> RaceDayAppSnapshot:
             display_ids: set[str] = set()
             horse_numbers: set[int] = set()
             for item in raw_display:
-                if not isinstance(item, dict) or set(item) != {
-                    "horse_id", "horse_number", "horse_name", "frame_number"
-                }:
+                required_display_keys = {"horse_id", "horse_number", "horse_name"}
+                if (
+                    not isinstance(item, dict)
+                    or not required_display_keys <= set(item)
+                    or set(item) - (required_display_keys | {"frame_number"})
+                ):
                     raise ValueError("invalid runner_display entry")
                 horse_id = item["horse_id"]
                 horse_number = item["horse_number"]
                 horse_name = item["horse_name"]
-                frame_number = item["frame_number"]
+                frame_number = item.get("frame_number")
                 normalized_horse_id = horse_id.strip() if isinstance(horse_id, str) else ""
                 if not normalized_horse_id or normalized_horse_id not in runner_ids:
                     raise ValueError("runner_display horse_id must identify a predicted runner")
@@ -325,7 +328,9 @@ def _race_day_snapshot(path: str | Path) -> RaceDayAppSnapshot:
                     raise ValueError("runner_display horse_number values must be unique")
                 if not isinstance(horse_name, str) or not horse_name.strip():
                     raise ValueError("horse_name must be non-empty")
-                if type(frame_number) is not int or not 1 <= frame_number <= 8:
+                if frame_number is not None and (
+                    type(frame_number) is not int or not 1 <= frame_number <= 8
+                ):
                     raise ValueError("frame_number must be an integer from 1 to 8")
                 display.append(RunnerDisplayAppSnapshot(
                     normalized_horse_id, horse_number, horse_name.strip(), frame_number

@@ -36,7 +36,7 @@ keiba-lab local-artifact-status
 
 ## RaceWeaveで開く
 
-Finderから`dist/RaceWeave.app`を開き、macOS標準画面で開催日出力の`race-day.json`を選ぶ。アプリは同じディレクトリの`race-day-provenance.json`と全予測バンドルを再監査し、成功した場合だけ表示する。選択をキャンセルすると合成デモが開く。
+Finderから`dist/RaceWeave.app`を開く。同じチェックアウトの`local/`に監査済み開催日があれば、開催日と固定時刻が最も新しいものを自動表示する。見つからない場合だけmacOS標準画面で開催日出力の`race-day.json`を選ぶ。アプリは同じディレクトリの`race-day-provenance.json`と全予測バンドルを再監査し、成功した場合だけ表示する。自動検出できず選択もキャンセルすると合成デモが開く。
 
 アプリは読み取り専用であり、学習、予測計算、結果取得、ファイル保存、馬券購入を行わない。選択パスも保持しない。別Macで同じ開催日を開く場合も、移送後にアプリまたは`keiba-lab audit-race-day`で再監査する。
 

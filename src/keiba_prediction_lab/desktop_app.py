@@ -3,16 +3,27 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import http.client
 import importlib
+import json
 import subprocess
 import sys
 import threading
+import time
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 from typing import Sequence
 
-from .app_snapshot import ReadOnlyAppSnapshot, build_read_only_app_snapshot
+from .app_snapshot import (
+    ReadOnlyAppSnapshot,
+    RunnerDisplayAppSnapshot,
+    build_read_only_app_snapshot,
+)
+from .bundle_audit import load_audited_prediction_bundle
 from .local_http import LOOPBACK_HOST, create_read_only_server
+from .local_adapter import load_targets_csv_bytes
 from .race_day_pipeline import audit_local_race_day
 from .ui_demo import create_ui_demo, load_ui_demo
 
@@ -44,6 +55,131 @@ def default_demo_directory(home: str | Path | None = None) -> Path:
     """Return the private per-user location for the bundled synthetic demo."""
     base = Path.home() if home is None else Path(home)
     return base / "Library" / "Application Support" / APP_NAME / "ui-demo-v1"
+
+
+def repository_local_directory(
+    executable: str | Path | None = None,
+) -> Path | None:
+    """Find this checkout's private local directory when the app lives in dist/."""
+    starts = (
+        Path(sys.executable if executable is None else executable).resolve(),
+        Path(__file__).resolve(),
+    )
+    for start in starts:
+        for candidate in (start.parent, *start.parents):
+            if (
+                (candidate / "AGENTS.md").is_file()
+                and (candidate / "src" / "keiba_prediction_lab").is_dir()
+            ):
+                local = candidate / "local"
+                return local if local.is_dir() else None
+    return None
+
+
+def latest_audited_race_day_manifest(
+    local_directory: str | Path | None,
+) -> Path | None:
+    """Return the newest valid local race day without changing any artifact."""
+    if local_directory is None:
+        return None
+    root = Path(local_directory)
+    if not root.is_dir() or root.is_symlink():
+        return None
+    candidates: list[tuple[object, object, str, Path]] = []
+    for manifest in root.rglob("race-day.json"):
+        if manifest.is_symlink() or not manifest.is_file():
+            continue
+        try:
+            audit = audit_local_race_day(manifest.parent)
+        except (OSError, ValueError, UnicodeError):
+            continue
+        candidates.append((
+            audit.race_date,
+            audit.frozen_at,
+            manifest.as_posix(),
+            manifest,
+        ))
+    return max(candidates)[-1] if candidates else None
+
+
+def adjacent_related_artifacts(
+    manifest: str | Path,
+) -> tuple[Path | None, Path | None]:
+    """Resolve optional audited UI companions only from the selected day folder."""
+    root = Path(manifest).parent
+    walk_forward = root / "walk-forward.json"
+    win5 = root / "win5.json"
+    return (
+        walk_forward if walk_forward.is_file() and not walk_forward.is_symlink() else None,
+        win5 if win5.is_file() and not win5.is_symlink() else None,
+    )
+
+
+def verified_runner_display_by_race(
+    manifest: str | Path,
+    local_directory: str | Path | None,
+) -> dict[str, tuple[RunnerDisplayAppSnapshot, ...]]:
+    """Join result-free target labels only when their exact saved hash matches."""
+    if local_directory is None:
+        return {}
+    root = Path(local_directory)
+    if not root.is_dir() or root.is_symlink():
+        return {}
+    manifest_path = Path(manifest)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    candidates_by_name: dict[str, list[Path]] = {}
+    for candidate in root.rglob("*.csv"):
+        if candidate.is_file() and not candidate.is_symlink():
+            candidates_by_name.setdefault(candidate.name, []).append(candidate)
+    result: dict[str, tuple[RunnerDisplayAppSnapshot, ...]] = {}
+    for venue in payload["venues"]:
+        for race in venue["races"]:
+            bundle_path = manifest_path.parent / race["prediction_bundle"]
+            audited = load_audited_prediction_bundle(bundle_path)
+            actual = audited.bundle.actual_prediction
+            expected_ids = {row.horse_id for row in actual.predictions}
+            for candidate in candidates_by_name.get(f"{actual.race_id}.csv", []):
+                content = candidate.read_bytes()
+                if hashlib.sha256(content).hexdigest() != audited.audit.targets_sha256:
+                    continue
+                targets = load_targets_csv_bytes(content, candidate.name)
+                if {row.horse_id for row in targets} != expected_ids:
+                    continue
+                display = tuple(
+                    RunnerDisplayAppSnapshot(
+                        horse_id=row.horse_id,
+                        horse_number=row.post_position,
+                        horse_name=row.horse_id.removeprefix("horse:name:"),
+                    )
+                    for row in sorted(targets, key=lambda item: item.post_position)
+                )
+                result[actual.race_id] = display
+                break
+    return result
+
+
+def _with_verified_runner_display(
+    snapshot: ReadOnlyAppSnapshot,
+    display_by_race: dict[str, tuple[RunnerDisplayAppSnapshot, ...]],
+) -> ReadOnlyAppSnapshot:
+    if snapshot.race_day is None or not display_by_race:
+        return snapshot
+    venues = tuple(
+        replace(
+            venue,
+            races=tuple(
+                replace(
+                    race,
+                    runner_display=display_by_race.get(
+                        race.prediction.race_id, race.runner_display
+                    ),
+                )
+                for race in venue.races
+            ),
+        )
+        for venue in snapshot.race_day.venues
+    )
+    return replace(snapshot, race_day=replace(snapshot.race_day, venues=venues))
 
 
 def load_or_create_demo_snapshot(directory: str | Path) -> ReadOnlyAppSnapshot:
@@ -92,6 +228,7 @@ def load_audited_race_day_snapshot(
     *,
     walk_forward_report: str | Path | None = None,
     win5_forecast: str | Path | None = None,
+    runner_display_search_root: str | Path | None = None,
 ) -> ReadOnlyAppSnapshot:
     """Re-audit a complete race day before exposing it to the desktop UI."""
     selected = Path(manifest)
@@ -104,6 +241,10 @@ def load_audited_race_day_snapshot(
         race_day_manifest=selected,
         walk_forward_report=walk_forward_report,
         win5_forecast=win5_forecast,
+    )
+    snapshot = _with_verified_runner_display(
+        snapshot,
+        verified_runner_display_by_race(selected, runner_display_search_root),
     )
     # Detect changes that occurred while the display snapshot was assembled.
     audit_local_race_day(selected.parent)
@@ -120,6 +261,32 @@ def _load_webview() -> ModuleType:
         ) from error
 
 
+def _wait_for_loopback_server(port: int, timeout_seconds: float = 2.0) -> None:
+    """Prevent WebKit's first navigation from racing the server thread."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        connection = http.client.HTTPConnection(LOOPBACK_HOST, port, timeout=0.2)
+        try:
+            connection.request("GET", "/health")
+            response = connection.getresponse()
+            response.read()
+            if response.status == 200:
+                return
+        except OSError:
+            time.sleep(0.02)
+        finally:
+            connection.close()
+    raise RuntimeError("RaceWeaveのローカル表示サーバーを開始できません")
+
+
+def _load_window_url(window: object, url: str) -> None:
+    """Navigate only after pywebview has finished creating the native window."""
+    load_url = getattr(window, "load_url", None)
+    if not callable(load_url):
+        raise RuntimeError("RaceWeaveのWebKitウインドウを初期化できません")
+    load_url(url)
+
+
 def run_desktop_window(
     snapshot: ReadOnlyAppSnapshot,
     *,
@@ -132,14 +299,21 @@ def run_desktop_window(
         thread.start()
         url = f"http://{LOOPBACK_HOST}:{server.server_address[1]}/"
         try:
-            webview.create_window(
+            _wait_for_loopback_server(server.server_address[1])
+            window = webview.create_window(
                 f"{APP_NAME} — {APP_NAME_JA}",
-                url,
+                html=(
+                    '<!doctype html><html lang="ja"><meta charset="utf-8">'
+                    '<body style="font-family:-apple-system;margin:48px">'
+                    "監査済みデータを読み込んでいます</body></html>"
+                ),
                 width=DEFAULT_WINDOW_SIZE[0],
                 height=DEFAULT_WINDOW_SIZE[1],
                 min_size=MINIMUM_WINDOW_SIZE,
             )
-            webview.start()
+            if window is None:
+                raise RuntimeError("RaceWeaveのWebKitウインドウを作成できません")
+            webview.start(_load_window_url, (window, url))
         finally:
             server.shutdown()
             thread.join(timeout=5)
@@ -191,12 +365,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                     win5_forecast=args.win5_forecast,
                 )
         else:
-            selected = choose_race_day_manifest()
-            snapshot = (
-                load_audited_race_day_snapshot(selected)
-                if selected is not None
-                else load_or_create_demo_snapshot(default_demo_directory())
-            )
+            local_directory = repository_local_directory()
+            selected = latest_audited_race_day_manifest(local_directory)
+            if selected is None:
+                selected = choose_race_day_manifest()
+            if selected is not None:
+                walk_forward, win5 = adjacent_related_artifacts(selected)
+                snapshot = load_audited_race_day_snapshot(
+                    selected,
+                    walk_forward_report=walk_forward,
+                    win5_forecast=win5,
+                    runner_display_search_root=local_directory,
+                )
+            else:
+                snapshot = load_or_create_demo_snapshot(default_demo_directory())
         run_desktop_window(snapshot)
     except (
         OSError,

@@ -164,6 +164,13 @@ def load_targets_csv(path: str | Path) -> tuple[TargetRunner, ...]:
     return _load_targets_bytes(source.read_bytes(), source.name)
 
 
+def load_targets_csv_bytes(
+    content: bytes, source_name: str,
+) -> tuple[TargetRunner, ...]:
+    """Load one already-hashed target snapshot without reading it a second time."""
+    return _load_targets_bytes(content, source_name)
+
+
 def _identity_namespace(value: str) -> str | None:
     parts = value.split(":", 2)
     return ":".join(parts[:2]) if len(parts) == 3 else None
