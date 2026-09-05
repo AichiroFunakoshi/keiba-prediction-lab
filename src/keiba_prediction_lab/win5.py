@@ -9,10 +9,16 @@ from datetime import datetime
 from pathlib import Path
 
 from .bundle_audit import load_audited_prediction_bundle
+from .market_blend import load_market_blend_forecast
 
 
 WIN5_SCHEMA_VERSION = "1.0"
 WIN5_GENERATOR_VERSION = "win5-independent-winners-v1"
+WIN5_MARKET_BLEND_GENERATOR_VERSION = "win5-market-blend-winners-v1"
+WIN5_GENERATOR_VERSIONS = frozenset({
+    WIN5_GENERATOR_VERSION,
+    WIN5_MARKET_BLEND_GENERATOR_VERSION,
+})
 
 
 @dataclass(frozen=True)
@@ -69,7 +75,7 @@ class Win5Forecast:
     def __post_init__(self) -> None:
         if self.frozen_at.tzinfo is None:
             raise ValueError("WIN5 frozen_at must include a timezone")
-        if self.generator_version != WIN5_GENERATOR_VERSION:
+        if self.generator_version not in WIN5_GENERATOR_VERSIONS:
             raise ValueError("unsupported WIN5 generator_version")
         if len(self.legs) != 5 or len({row.race_id for row in self.legs}) != 5:
             raise ValueError("WIN5 requires exactly five distinct races")
@@ -159,7 +165,8 @@ def build_win5_forecast(
 
 
 def build_win5_forecast_from_legs(
-    legs: Sequence[Win5Leg], *, frozen_at: datetime
+    legs: Sequence[Win5Leg], *, frozen_at: datetime,
+    generator_version: str = WIN5_GENERATOR_VERSION,
 ) -> Win5Forecast:
     """Build a WIN5 forecast from five already validated race legs."""
     ordered = tuple(sorted(legs, key=lambda leg: leg.scheduled_at))
@@ -171,6 +178,39 @@ def build_win5_forecast_from_legs(
         joint_probability=math.prod(
             leg.runners[0].win_probability for leg in ordered
         ),
+        generator_version=generator_version,
+    )
+
+
+def build_market_blend_win5_forecast(
+    market_blend_path: str | Path,
+    race_ids: Sequence[str],
+) -> Win5Forecast:
+    """Build a zero-stake WIN5 forecast from one audited market-blend snapshot."""
+    if len(race_ids) != 5 or len(set(race_ids)) != 5:
+        raise ValueError("market-blend WIN5 requires five distinct race_ids")
+    blend = load_market_blend_forecast(market_blend_path)
+    by_id = {race.race_id: race for race in blend.races}
+    missing = set(race_ids) - set(by_id)
+    if missing:
+        raise ValueError(f"market blend is missing WIN5 races: {sorted(missing)}")
+    legs = tuple(
+        Win5Leg(
+            race_id=race.race_id,
+            scheduled_at=race.scheduled_at,
+            model_version=race.model_version,
+            input_data_version=race.input_data_version,
+            runners=tuple(
+                Win5Runner(row.horse_id, row.blended_probability)
+                for row in race.runners
+            ),
+        )
+        for race in (by_id[race_id] for race_id in race_ids)
+    )
+    return build_win5_forecast_from_legs(
+        legs,
+        frozen_at=blend.observed_at,
+        generator_version=WIN5_MARKET_BLEND_GENERATOR_VERSION,
     )
 
 

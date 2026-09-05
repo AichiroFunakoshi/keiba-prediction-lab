@@ -85,7 +85,12 @@ from .walk_forward_report import (
     evaluate_local_walk_forward,
     save_walk_forward_artifact,
 )
-from .win5 import build_win5_forecast, load_win5_forecast, save_win5_forecast
+from .win5 import (
+    build_market_blend_win5_forecast,
+    build_win5_forecast,
+    load_win5_forecast,
+    save_win5_forecast,
+)
 from .winner_diagnostics import diagnose_winner_misses
 
 
@@ -231,6 +236,10 @@ def _build_parser() -> argparse.ArgumentParser:
     train_model.add_argument("--epochs", type=int, default=500)
     train_model.add_argument("--learning-rate", type=float, default=0.1)
     train_model.add_argument("--l2-strength", type=float, default=0.01)
+    train_model.add_argument(
+        "--calibration-races", type=int, default=0,
+        help="reserve the newest N races for time-separated temperature calibration",
+    )
 
     predict_race = subparsers.add_parser(
         "predict-race",
@@ -305,6 +314,14 @@ def _build_parser() -> argparse.ArgumentParser:
     predict_win5.add_argument("race_directories", type=Path, nargs=5)
     predict_win5.add_argument("--frozen-at", required=True)
     predict_win5.add_argument("--output", type=Path, required=True)
+
+    predict_market_win5 = subparsers.add_parser(
+        "predict-market-blend-win5",
+        help="freeze a zero-stake WIN5 forecast from five market-blend races",
+    )
+    predict_market_win5.add_argument("market_blend", type=Path)
+    predict_market_win5.add_argument("race_ids", nargs=5)
+    predict_market_win5.add_argument("--output", type=Path, required=True)
 
     audit_win5 = subparsers.add_parser(
         "audit-win5-forecast",
@@ -824,6 +841,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             epochs=args.epochs,
             learning_rate=args.learning_rate,
             l2_strength=args.l2_strength,
+            calibration_races=args.calibration_races,
         )
         artifact = train_local_model_artifact(
             args.training, parameters=parameters
@@ -834,6 +852,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "model_sha256": digest,
             "model_version": artifact.model.model_version,
             "trained_through": artifact.model.trained_through.isoformat(),
+            "calibrated_through": (
+                artifact.model.calibrated_through.isoformat()
+                if hasattr(artifact.model, "calibrated_through") else None
+            ),
+            "temperature": getattr(artifact.model, "temperature", None),
             "training_row_count": artifact.training_row_count,
             "training_race_count": artifact.training_race_count,
             "input_data_version": artifact.input_data_version,
@@ -970,6 +993,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             forecast = build_win5_forecast(
                 args.race_directories,
                 frozen_at=datetime.fromisoformat(args.frozen_at),
+            )
+            save_win5_forecast(forecast, args.output)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({
+                "is_valid": False,
+                "error": str(error),
+            }, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            **forecast.to_dict(),
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "predict-market-blend-win5":
+        try:
+            forecast = build_market_blend_win5_forecast(
+                args.market_blend, args.race_ids
             )
             save_win5_forecast(forecast, args.output)
         except (OSError, ValueError, UnicodeError) as error:

@@ -2,21 +2,29 @@
 
 import hashlib
 import json
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from math import isfinite
 from pathlib import Path
 from typing import Any
 
+from .calibration import (
+    CalibrationRow,
+    TemperatureCalibratedModel,
+    fit_temperature_scaling,
+)
 from .local_adapter import build_time_safe_training_bundle
 from .model import (
     CONDITIONAL_LOGIT_FEATURE_NAMES,
     ConditionalLogitModel,
+    TrainingRow,
     fit_conditional_logit,
 )
 
 
-MODEL_ARTIFACT_SCHEMA_VERSION = "1.0"
+MODEL_ARTIFACT_SCHEMA_VERSION = "1.1"
+SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0", "1.1"})
 
 
 @dataclass(frozen=True)
@@ -25,6 +33,7 @@ class ModelTrainingParameters:
     epochs: int = 500
     learning_rate: float = 0.1
     l2_strength: float = 0.01
+    calibration_races: int = 0
 
     def __post_init__(self) -> None:
         if (
@@ -47,6 +56,8 @@ class ModelTrainingParameters:
             or self.l2_strength < 0.0
         ):
             raise ValueError("l2_strength must be non-negative and finite")
+        if type(self.calibration_races) is not int or self.calibration_races < 0:
+            raise ValueError("calibration_races must be a non-negative integer")
 
 
 @dataclass(frozen=True)
@@ -56,13 +67,15 @@ class TrainedModelArtifact:
     training_row_count: int
     training_race_count: int
     parameters: ModelTrainingParameters
-    model: ConditionalLogitModel
+    model: ConditionalLogitModel | TemperatureCalibratedModel
 
     def __post_init__(self) -> None:
         if not isinstance(self.parameters, ModelTrainingParameters):
             raise ValueError("parameters must be ModelTrainingParameters")
-        if not isinstance(self.model, ConditionalLogitModel):
-            raise ValueError("model must be ConditionalLogitModel")
+        if not isinstance(
+            self.model, (ConditionalLogitModel, TemperatureCalibratedModel)
+        ):
+            raise ValueError("model must be a supported conditional-logit model")
         if len(self.training_sha256) != 64 or any(
             character not in "0123456789abcdef"
             for character in self.training_sha256
@@ -95,8 +108,18 @@ class TrainedModelArtifact:
             raise ValueError("model trained_through must be timezone-aware")
         if not isinstance(self.model.model_version, str) or not self.model.model_version.strip():
             raise ValueError("model_version must not be empty")
-        if self.model.model_version != "conditional-logit-v1":
+        if self.model.model_version not in (
+            "conditional-logit-v1",
+            "conditional-logit-v1-temperature-v1",
+        ):
             raise ValueError("unsupported model_version")
+        if isinstance(self.model, TemperatureCalibratedModel):
+            if self.parameters.calibration_races < 1:
+                raise ValueError("calibrated model requires calibration_races")
+            if self.model.calibrated_through <= self.model.trained_through:
+                raise ValueError("calibration period must follow model training")
+        elif self.parameters.calibration_races != 0:
+            raise ValueError("uncalibrated model requires calibration_races=0")
 
 
 def train_local_model_artifact(
@@ -111,12 +134,41 @@ def train_local_model_artifact(
     bundle = build_time_safe_training_bundle(
         training_path, prior_strength=selected.prior_strength
     )
-    model = fit_conditional_logit(
-        bundle.rows,
+    races: dict[str, list[TrainingRow]] = defaultdict(list)
+    for row in bundle.rows:
+        races[row.features.race_id].append(row)
+    ordered_races = sorted(
+        races.values(),
+        key=lambda race: (race[0].features.observed_at, race[0].features.race_id),
+    )
+    if selected.calibration_races >= len(ordered_races):
+        raise ValueError("calibration_races must leave at least one training race")
+    calibration = (
+        ordered_races[-selected.calibration_races:]
+        if selected.calibration_races
+        else []
+    )
+    training = (
+        ordered_races[:-selected.calibration_races]
+        if selected.calibration_races
+        else ordered_races
+    )
+    base_model = fit_conditional_logit(
+        tuple(row for race in training for row in race),
         epochs=selected.epochs,
         learning_rate=selected.learning_rate,
         l2_strength=selected.l2_strength,
     )
+    model: ConditionalLogitModel | TemperatureCalibratedModel = base_model
+    if calibration:
+        model = fit_temperature_scaling(
+            base_model,
+            tuple(
+                CalibrationRow(row.features, row.finish_position)
+                for race in calibration
+                for row in race
+            ),
+        )
     return TrainedModelArtifact(
         training_sha256=bundle.training_sha256,
         input_data_version=bundle.input_data_version,
@@ -128,6 +180,19 @@ def train_local_model_artifact(
 
 
 def _payload(artifact: TrainedModelArtifact) -> dict[str, object]:
+    model_payload: dict[str, object] = {
+        "model_version": artifact.model.model_version,
+        "trained_through": artifact.model.trained_through.isoformat(),
+        "feature_names": list(CONDITIONAL_LOGIT_FEATURE_NAMES),
+        "coefficients": list(artifact.model.coefficients),
+        "means": list(artifact.model.means),
+        "scales": list(artifact.model.scales),
+    }
+    if isinstance(artifact.model, TemperatureCalibratedModel):
+        model_payload.update({
+            "temperature": artifact.model.temperature,
+            "calibrated_through": artifact.model.calibrated_through.isoformat(),
+        })
     return {
         "training_sha256": artifact.training_sha256,
         "input_data_version": artifact.input_data_version,
@@ -138,15 +203,9 @@ def _payload(artifact: TrainedModelArtifact) -> dict[str, object]:
             "epochs": artifact.parameters.epochs,
             "learning_rate": float(artifact.parameters.learning_rate),
             "l2_strength": float(artifact.parameters.l2_strength),
+            "calibration_races": artifact.parameters.calibration_races,
         },
-        "model": {
-            "model_version": artifact.model.model_version,
-            "trained_through": artifact.model.trained_through.isoformat(),
-            "feature_names": list(CONDITIONAL_LOGIT_FEATURE_NAMES),
-            "coefficients": list(artifact.model.coefficients),
-            "means": list(artifact.model.means),
-            "scales": list(artifact.model.scales),
-        },
+        "model": model_payload,
     }
 
 
@@ -194,7 +253,8 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
     envelope = json.loads(content.decode("utf-8"))
     if not isinstance(envelope, dict):
         raise ValueError("model artifact envelope must be an object")
-    if envelope.get("schema_version") != MODEL_ARTIFACT_SCHEMA_VERSION:
+    schema_version = envelope.get("schema_version")
+    if schema_version not in SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS:
         raise ValueError("unsupported model artifact schema_version")
     payload = envelope.get("payload")
     if not isinstance(payload, dict):
@@ -207,15 +267,35 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
     feature_names = _required(model_payload, "feature_names", list)
     if feature_names != list(CONDITIONAL_LOGIT_FEATURE_NAMES):
         raise ValueError("model artifact feature schema is incompatible")
-    model = ConditionalLogitModel(
+    base_model = ConditionalLogitModel(
         coefficients=_float_tuple(model_payload, "coefficients"),
         means=_float_tuple(model_payload, "means"),
         scales=_float_tuple(model_payload, "scales"),
         trained_through=datetime.fromisoformat(
             _required(model_payload, "trained_through", str)
         ),
-        model_version=_required(model_payload, "model_version", str),
+        model_version="conditional-logit-v1",
     )
+    model_version = _required(model_payload, "model_version", str)
+    if model_version == "conditional-logit-v1":
+        model: ConditionalLogitModel | TemperatureCalibratedModel = base_model
+    elif model_version == "conditional-logit-v1-temperature-v1":
+        if schema_version != "1.1":
+            raise ValueError("calibrated model requires artifact schema 1.1")
+        temperature = model_payload.get("temperature")
+        calibrated_through = model_payload.get("calibrated_through")
+        if (
+            type(temperature) not in (int, float)
+            or type(calibrated_through) is not str
+        ):
+            raise ValueError("calibrated model metadata is invalid")
+        model = TemperatureCalibratedModel(
+            base_model,
+            float(temperature),
+            datetime.fromisoformat(calibrated_through),
+        )
+    else:
+        raise ValueError("unsupported model_version")
     return TrainedModelArtifact(
         training_sha256=_required(payload, "training_sha256", str),
         input_data_version=_required(payload, "input_data_version", str),
@@ -226,6 +306,10 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
             epochs=_required(parameters, "epochs", int),
             learning_rate=float(_required(parameters, "learning_rate", float)),
             l2_strength=float(_required(parameters, "l2_strength", float)),
+            calibration_races=(
+                _required(parameters, "calibration_races", int)
+                if "calibration_races" in parameters else 0
+            ),
         ),
         model=model,
     )

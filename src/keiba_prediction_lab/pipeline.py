@@ -14,6 +14,7 @@ from .bet_type_forecast import (
     freeze_built_bet_type_forecast,
     save_frozen_bet_type_forecast,
 )
+from .calibration import TemperatureCalibratedModel
 from .domain import BetType
 from .features import FeatureRow
 from .frozen import (
@@ -137,7 +138,7 @@ class RacePredictionBundle:
 
 
 def run_race_prediction_pipeline(
-    model: ConditionalLogitModel,
+    model: ConditionalLogitModel | TemperatureCalibratedModel,
     feature_rows: Sequence[FeatureRow],
     pace_profiles: Sequence[PaceRunnerProfile],
     pace_scenario: RacePaceScenario,

@@ -4,7 +4,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from math import log
+from math import isfinite, log
 
 from .domain import PredictionRecord, validate_race_predictions
 from .features import FeatureRow
@@ -63,9 +63,38 @@ class TemperatureCalibratedModel:
     temperature: float
     calibrated_through: datetime
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.base_model, ConditionalLogitModel):
+            raise ValueError("base_model must be ConditionalLogitModel")
+        if not isfinite(self.temperature) or self.temperature <= 0.0:
+            raise ValueError("temperature must be positive and finite")
+        if (
+            self.calibrated_through.tzinfo is None
+            or self.calibrated_through.utcoffset() is None
+        ):
+            raise ValueError("calibrated_through must be timezone-aware")
+        if self.calibrated_through <= self.base_model.trained_through:
+            raise ValueError("calibration period must follow model training")
+
     @property
     def model_version(self) -> str:
         return f"{self.base_model.model_version}-temperature-v1"
+
+    @property
+    def coefficients(self) -> tuple[float, ...]:
+        return self.base_model.coefficients
+
+    @property
+    def means(self) -> tuple[float, ...]:
+        return self.base_model.means
+
+    @property
+    def scales(self) -> tuple[float, ...]:
+        return self.base_model.scales
+
+    @property
+    def trained_through(self) -> datetime:
+        return self.base_model.trained_through
 
     def predict(self, rows: Sequence[FeatureRow]) -> tuple[PredictionRecord, ...]:
         if not rows:

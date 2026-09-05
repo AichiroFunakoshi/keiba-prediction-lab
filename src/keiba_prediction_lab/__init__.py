@@ -291,10 +291,12 @@ from .walk_forward_report import (
 )
 from .win5 import (
     WIN5_GENERATOR_VERSION,
+    WIN5_MARKET_BLEND_GENERATOR_VERSION,
     WIN5_SCHEMA_VERSION,
     Win5Forecast,
     Win5Leg,
     Win5Runner,
+    build_market_blend_win5_forecast,
     build_win5_forecast,
     build_win5_forecast_from_legs,
     load_win5_forecast,
@@ -423,6 +425,7 @@ __all__ = [
     "Win5Leg",
     "Win5Runner",
     "WIN5_GENERATOR_VERSION",
+    "WIN5_MARKET_BLEND_GENERATOR_VERSION",
     "WIN5_SCHEMA_VERSION",
     "WalkForwardArtifact",
     "WalkForwardArtifactAudit",
@@ -461,6 +464,7 @@ __all__ = [
     "build_bet_type_forecast",
     "build_bet_type_forecast_from_combinations",
     "build_trifecta_forecast",
+    "build_market_blend_win5_forecast",
     "build_win5_forecast",
     "build_win5_forecast_from_legs",
     "calibration_summary",
