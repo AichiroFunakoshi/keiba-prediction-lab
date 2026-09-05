@@ -145,6 +145,20 @@ class DesktopAppTest(unittest.TestCase):
 
         self.assertEqual(related, (walk_forward, None))
 
+    def test_adjacent_related_artifacts_prefer_revised_win5(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "race-day.json"
+            manifest.write_text("{}", encoding="utf-8")
+            original = root / "win5.json"
+            revised = root / "win5-market-blend.json"
+            original.write_text("original", encoding="utf-8")
+            revised.write_text("revised", encoding="utf-8")
+
+            _, win5 = adjacent_related_artifacts(manifest)
+
+        self.assertEqual(win5, revised)
+
     def test_runner_display_joins_only_exact_hashed_target_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -171,6 +185,7 @@ class DesktopAppTest(unittest.TestCase):
 
         self.assertEqual(len(display[race_id]), 5)
         self.assertEqual(display[race_id][0].horse_number, 1)
+        self.assertEqual(display[race_id][0].frame_number, 1)
         self.assertNotIn(race_id, rejected)
 
     def test_macos_chooser_returns_selected_manifest(self) -> None:

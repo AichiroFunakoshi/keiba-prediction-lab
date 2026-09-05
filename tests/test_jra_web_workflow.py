@@ -45,14 +45,14 @@ CARD = f"""
 発走時刻：<strong>12時00分</strong>
 <span>コース：</span>1,600<span>メートル</span><span>（芝・左）</span>
 <table><tbody>
-<tr><td class="num">1</td><td class="horse"><div class="name"><a>テストホースA</a></div>
+<tr><td class="waku"><img alt="枠1白"></td><td class="num">1</td><td class="horse"><div class="name"><a>テストホースA</a></div>
 <div class="odds"><strong>2.5</strong></div><div class="weight">480kg</div>
 <p class="trainer"><a>調教師A</a></p></td>
 <td class="jockey"><p class="weight">55.0kg</p><p class="jockey">騎手A</p></td>
 <td class="past"><div class="date">2098年12月30日</div><div class="rc">東京</div>
 <div class="place">1着</div><div class="dist">1600芝</div><div class="condition">良</div>
 <div class="f3">3F 34.0</div><a href="{RESULT_URL}">結果</a></td></tr>
-<tr><td class="num">2</td><td class="horse"><div class="name"><a>テストホースB</a></div>
+<tr><td class="waku"><img alt="枠2黒"></td><td class="num">2</td><td class="horse"><div class="name"><a>テストホースB</a></div>
 <div class="odds"><strong>4.0</strong></div><div class="weight">470kg</div>
 <p class="trainer">調教師B<span class="division">(本会外)</span></p></td>
 <td class="jockey"><p class="weight">56.0kg</p><p class="jockey">騎手B</p></td>
@@ -132,6 +132,11 @@ class JraWebWorkflowTest(unittest.TestCase):
         card = CARD.replace("結果</a>", "障害未勝利</a>", 1)
 
         self.assertEqual(parse_card(_encoded(card), CARD_CNAME)["surface"], "turf")
+
+    def test_card_extracts_explicit_jra_frame_numbers(self) -> None:
+        horses = parse_card(_encoded(CARD), CARD_CNAME)["horses"]
+
+        self.assertEqual([horse["frame_number"] for horse in horses], [1, 2])
 
     def test_requires_explicit_private_use_acknowledgement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

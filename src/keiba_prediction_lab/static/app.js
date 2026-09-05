@@ -33,7 +33,8 @@ function renderTicket(prediction, displayById) {
     if (index > 0) selection.append(node("span", "ticket-arrow", "→"));
     const display = displayById.get(horseId);
     const number = node(
-      "span", "ticket-number", display ? String(display.horse_number) : horseId
+      "span", display ? `ticket-number frame-${display.frame_number}` : "ticket-number",
+      display ? String(display.horse_number) : horseId
     );
     if (display) number.title = `${display.horse_name}（馬ID: ${horseId}）`;
     selection.append(number);
@@ -127,7 +128,11 @@ function renderPrediction(prediction, runnerDisplay = []) {
   byId("scheduled-at").textContent = dateTime(prediction.scheduled_at);
   byId("context-scheduled").textContent = dateTime(prediction.scheduled_at);
   byId("context-frozen").textContent = dateTime(prediction.frozen_at);
-  byId("context-model").textContent = prediction.model_version;
+  const isMarketBlend = prediction.model_version.includes("market-log-pool");
+  byId("context-model").textContent = isMarketBlend
+    ? "市場混合 65:35（発走前オッズ反映）"
+    : prediction.model_version;
+  byId("context-model").title = isMarketBlend ? prediction.model_version : "";
   byId("context-input").textContent = prediction.input_data_version;
   const displayById = runnerDisplayMap(runnerDisplay);
   renderTicket(prediction, displayById);
@@ -151,7 +156,10 @@ function compactTicket(selection, target, displayById = new Map()) {
   selection.forEach((horseId, index) => {
     if (index > 0) target.append(node("span", "compact-arrow", "→"));
     const display = displayById.get(horseId);
-    const number = node("span", "compact-number", display ? String(display.horse_number) : horseId);
+    const number = node(
+      "span", display ? `compact-number frame-${display.frame_number}` : "compact-number",
+      display ? String(display.horse_number) : horseId
+    );
     if (display) {
       number.title = `${display.horse_name}（馬ID: ${horseId}）`;
     }
@@ -200,7 +208,13 @@ function renderVenue(raceDay, venueIndex) {
     if (winnerDisplay) winnerName.title = `馬ID: ${winner.horse_id}`;
     winnerCell.append(winnerName);
     row.append(winnerCell);
-    row.append(node("b", "ledger-probability", percent(winner.win_probability)));
+    const probabilityCell = node("span", "ledger-probability-wrap");
+    probabilityCell.append(node("b", "ledger-probability", percent(winner.win_probability)));
+    probabilityCell.append(node(
+      "small", "", prediction.model_version.includes("market-log-pool")
+        ? "オッズ反映 65:35" : "独立予測"
+    ));
+    row.append(probabilityCell);
     const ticket = node("span", "compact-ticket ledger-ticket");
     compactTicket(prediction.actual.selection, ticket, displayById);
     row.append(ticket);

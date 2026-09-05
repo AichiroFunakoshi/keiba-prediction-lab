@@ -57,6 +57,11 @@ from .market_guard import (
     build_market_guard_report_from_snapshot,
     save_market_guard_report,
 )
+from .market_blend import (
+    DEFAULT_MARKET_WEIGHT,
+    build_market_blend_forecast_from_snapshot,
+    save_market_blend_forecast,
+)
 from .model_artifact import (
     ModelTrainingParameters,
     save_trained_model_artifact,
@@ -283,6 +288,15 @@ def _build_parser() -> argparse.ArgumentParser:
     market_guard.add_argument("snapshot", type=Path)
     market_guard.add_argument("--max-market-rank", type=int, default=3)
     market_guard.add_argument("--output", type=Path, required=True)
+
+    market_blend = subparsers.add_parser(
+        "build-market-blend",
+        help="freeze post-odds model/market forecasts for only unstarted races",
+    )
+    market_blend.add_argument("race_day", type=Path)
+    market_blend.add_argument("snapshot", type=Path)
+    market_blend.add_argument("--market-weight", type=float, default=DEFAULT_MARKET_WEIGHT)
+    market_blend.add_argument("--output", type=Path, required=True)
 
     predict_win5 = subparsers.add_parser(
         "predict-win5",
@@ -927,6 +941,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             "eligible_race_count": report.eligible_race_count,
             "max_market_rank": report.policy.max_market_rank,
             "observed_at": report.observed_at.isoformat(),
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "build-market-blend":
+        try:
+            forecast = build_market_blend_forecast_from_snapshot(
+                args.race_day, args.snapshot, market_weight=args.market_weight
+            )
+            digest = save_market_blend_forecast(forecast, args.output)
+        except (OSError, RuntimeError, ValueError, UnicodeError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({
+            "is_valid": True,
+            "status": "post_odds_revised_prediction",
+            "output": str(args.output),
+            "sha256": digest,
+            "race_count": len(forecast.races),
+            "observed_at": forecast.observed_at.isoformat(),
+            "model_weight": forecast.model_weight,
+            "market_weight": forecast.market_weight,
         }, ensure_ascii=False, indent=2))
         return 0
 

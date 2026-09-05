@@ -232,15 +232,20 @@ def parse_card(content: bytes, cname: str) -> dict:
         'and td[contains(concat(" ",normalize-space(@class)," ")," num ")]]'
     )
     for row in rows:
+        frame_cell = _first(row, './td[contains(concat(" ",normalize-space(@class)," ")," waku ")]')
         number_cell = _first(row, './td[contains(concat(" ",normalize-space(@class)," ")," num ")]')
         horse_cell = _first(row, './td[contains(concat(" ",normalize-space(@class)," ")," horse ")]')
         jockey_cell = _first(row, './td[contains(concat(" ",normalize-space(@class)," ")," jockey ")]')
         name = _clean(_first(horse_cell, './/div[contains(concat(" ",normalize-space(@class)," ")," name ")]/a'))
         number_match = re.search(r"\d+", _clean(number_cell))
+        frame_values = frame_cell.xpath('.//img/@alt') if frame_cell is not None else []
+        frame_match = re.search(r"枠([1-8])", " ".join(frame_values))
         weight_match = re.search(r"\d+(?:\.\d+)?", _class_text(jockey_cell, "weight"))
         body_match = re.search(r"\d+", _class_text(horse_cell, "weight"))
         if not name or number_match is None or weight_match is None:
             continue
+        if frame_match is None:
+            raise ValueError(f"JRA card runner is missing explicit frame number: {cname}")
         pasts: list[dict] = []
         for past in row.xpath('./td[contains(concat(" ",normalize-space(@class)," ")," past ")]'):
             result_link = _first(past, './/a[contains(@href,"accessS.html")]')
@@ -266,6 +271,7 @@ def parse_card(content: bytes, cname: str) -> dict:
             trainer = _clean(trainer_cell)
             trainer = re.sub(r"[（(][^）)]*[）)]\s*$", "", trainer).strip()
         horses.append({
+            "frame_number": int(frame_match.group(1)),
             "number": int(number_match.group()),
             "name": name,
             "jockey": _class_text(jockey_cell, "jockey"),
