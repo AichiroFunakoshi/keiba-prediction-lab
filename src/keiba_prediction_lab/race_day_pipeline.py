@@ -343,11 +343,10 @@ def audit_local_race_day(directory: str | Path) -> LocalRaceDayAudit:
         for race in venue["races"]:
             if not isinstance(race, dict):
                 raise ValueError("race-day race must be an object")
-            _exact_keys(
-                race,
-                frozenset({"race_number", "prediction_bundle"}),
-                "race-day race",
-            )
+            required_race_keys = frozenset({"race_number", "prediction_bundle"})
+            allowed_race_keys = required_race_keys | {"runner_display"}
+            if not required_race_keys <= race.keys() or race.keys() - allowed_race_keys:
+                raise ValueError("invalid race-day race keys")
             race_number = race["race_number"]
             if (
                 type(race_number) is not int
@@ -369,6 +368,39 @@ def audit_local_race_day(directory: str | Path) -> LocalRaceDayAudit:
                 raise ValueError("saved race-day bundle path escapes output directory")
             audited = load_audited_prediction_bundle(bundle_path)
             actual = audited.bundle.actual_prediction
+            raw_display = race.get("runner_display", [])
+            if not isinstance(raw_display, list):
+                raise ValueError("runner_display must be a list")
+            if raw_display:
+                predicted_ids = {runner.horse_id for runner in actual.predictions}
+                display_ids: set[str] = set()
+                horse_numbers: set[int] = set()
+                for item in raw_display:
+                    if not isinstance(item, dict) or set(item) != {
+                        "horse_id", "horse_number", "horse_name"
+                    }:
+                        raise ValueError("invalid runner_display entry")
+                    horse_id = item["horse_id"]
+                    horse_number = item["horse_number"]
+                    horse_name = item["horse_name"]
+                    if (
+                        not isinstance(horse_id, str)
+                        or horse_id not in predicted_ids
+                        or horse_id in display_ids
+                    ):
+                        raise ValueError("runner_display horse_id is invalid")
+                    if (
+                        type(horse_number) is not int
+                        or not 1 <= horse_number <= 18
+                        or horse_number in horse_numbers
+                    ):
+                        raise ValueError("runner_display horse_number is invalid")
+                    if not isinstance(horse_name, str) or not horse_name.strip():
+                        raise ValueError("runner_display horse_name is invalid")
+                    display_ids.add(horse_id)
+                    horse_numbers.add(horse_number)
+                if display_ids != predicted_ids:
+                    raise ValueError("runner_display must cover every predicted runner")
             row = expected[key]
             if (
                 row["race_id"] != actual.race_id
@@ -466,6 +498,14 @@ def build_and_save_local_race_day(
             venues.setdefault(entry.venue, []).append({
                 "race_number": entry.race_number,
                 "prediction_bundle": relative.as_posix(),
+                "runner_display": [
+                    {
+                        "horse_id": row.horse_id,
+                        "horse_number": row.horse_number,
+                        "horse_name": row.horse_name,
+                    }
+                    for row in run.runner_display
+                ],
             })
         race_day_payload = {
             "schema_version": "1.0",

@@ -144,7 +144,7 @@ HTTP形式のローカルAPIを追加する場合も、ハンドラーはこの�
 
 読み取り専用UIについて、RaceWeaveという名称で`.app`包装を実装済みである。`pywebview`のmacOS WebKitウインドウから、空いている一時ポートに限定した既存ループバックAPIを表示し、ウインドウ終了時にサーバーも停止する。PyInstallerによる個人利用向けアプリ生成は通常依存から分離し、実データ、モデル、予測、結果を同梱しない。
 
-Finder起動時はmacOS標準画面で`race-day.json`を選択でき、開催日来歴と全予測バンドルを再監査してから表示する。キャンセル時だけApplication Support内の合成デモを再監査して表示する。監査付き予測実行、結果取得、Developer ID署名・公証は未実装であり、UI-2と外部配布段階で扱う。詳しくは[RaceWeave macOSアプリ](DESKTOP_APP.md)を参照する。
+Finder起動時は同じチェックアウトの`local/`から最新の監査済み`race-day.json`を自動検出し、開催日来歴と全予測バンドルを再監査してから表示する。見つからない場合だけmacOS標準画面で選択し、キャンセル時だけApplication Support内の合成デモを再監査して表示する。開催日出力と同じディレクトリの`walk-forward.json`と`win5.json`だけを任意の関連成果物として扱い、別場所から推測で混ぜない。監査付き予測実行、結果取得、Developer ID署名・公証は未実装であり、UI-2と外部配布段階で扱う。詳しくは[RaceWeave macOSアプリ](DESKTOP_APP.md)を参照する。
 
 ## UI着手前の完了条件
 

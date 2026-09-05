@@ -106,6 +106,9 @@ class RaceDayPipelineTest(unittest.TestCase):
                 race_day_manifest=result.race_day_manifest
             )
             provenance = json.loads(result.provenance.read_text(encoding="utf-8"))
+            manifest_payload = json.loads(
+                result.race_day_manifest.read_text(encoding="utf-8")
+            )
             canonical = json.dumps(
                 provenance["payload"], ensure_ascii=False, sort_keys=True,
                 separators=(",", ":"),
@@ -119,6 +122,17 @@ class RaceDayPipelineTest(unittest.TestCase):
         self.assertEqual(result.race_count, 2)
         self.assertEqual(result.venue_count, 1)
         self.assertEqual(len(snapshot.race_day.venues[0].races), 2)
+        display = manifest_payload["venues"][0]["races"][0]["runner_display"]
+        self.assertEqual(len(display), 5)
+        self.assertEqual(display[0], {
+            "horse_id": "horse-1",
+            "horse_number": 1,
+            "horse_name": "horse-1",
+        })
+        self.assertEqual(
+            snapshot.race_day.venues[0].races[0].runner_display[0].horse_number,
+            1,
+        )
         self.assertEqual([row.race_id for row in audits], ["target-1", "target-2"])
         self.assertEqual(
             provenance["sha256"], hashlib.sha256(canonical.encode()).hexdigest()

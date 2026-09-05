@@ -38,6 +38,13 @@ LOCAL_INPUT_HASH_KEYS = frozenset({
 
 
 @dataclass(frozen=True)
+class LocalRunnerDisplay:
+    horse_id: str
+    horse_number: int
+    horse_name: str
+
+
+@dataclass(frozen=True)
 class LocalPipelineRun:
     prediction: RacePredictionBundle
     input_data_version: str
@@ -46,6 +53,7 @@ class LocalPipelineRun:
     targets_sha256: str
     pace_profiles_sha256: str
     pace_scenario_sha256: str
+    runner_display: tuple[LocalRunnerDisplay, ...]
 
     def __post_init__(self) -> None:
         if not isinstance(self.prediction, RacePredictionBundle):
@@ -65,6 +73,20 @@ class LocalPipelineRun:
             != self.input_data_version
         ):
             raise ValueError("prediction must use the local input_data_version")
+        predicted_ids = {
+            row.horse_id for row in self.prediction.actual_prediction.predictions
+        }
+        display_ids = {row.horse_id for row in self.runner_display}
+        horse_numbers = {row.horse_number for row in self.runner_display}
+        if display_ids != predicted_ids:
+            raise ValueError("runner display must identify every predicted runner")
+        if len(horse_numbers) != len(self.runner_display):
+            raise ValueError("runner display horse numbers must be unique")
+
+
+def _horse_display_name(horse_id: str) -> str:
+    prefix = "horse:name:"
+    return horse_id.removeprefix(prefix) if horse_id.startswith(prefix) else horse_id
 
 
 def _sha256(content: bytes) -> str:
@@ -254,6 +276,14 @@ def build_local_race_prediction(
         targets_sha256=component_hashes["targets"],
         pace_profiles_sha256=component_hashes["pace_profiles"],
         pace_scenario_sha256=component_hashes["pace_scenario"],
+        runner_display=tuple(
+            LocalRunnerDisplay(
+                horse_id=row.horse_id,
+                horse_number=row.post_position,
+                horse_name=_horse_display_name(row.horse_id),
+            )
+            for row in features.features
+        ),
     )
 
 
