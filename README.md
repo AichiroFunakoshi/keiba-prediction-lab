@@ -142,6 +142,8 @@ python -m keiba_prediction_lab.cli audit-walk-forward-report \
   reports/walk-forward.json
 ```
 
+馬場適性の候補版は、芝・ダート・障害を分離した同一馬場状態の勝率・3着内率・経験数を使う。従来版と同じ固定窓で比較するときだけ`--track-condition-v2`を指定する。方式と運用上の注意は[馬場適性特徴量 v2](docs/TRACK_CONDITION_V2.md)を参照する。
+
 各窓は必ず「学習→校正→未来評価」の順とし、評価期間の重複を拒否します。標準出力にはMarkdown、`--report`には学習CSVと窓定義のSHA-256を含む上書き不可のJSONを保存します。保存後は専用監査で改変、型、窓・集計・校正・診断の不整合を確認できます。窓を結果に合わせて自動選択する機能はありません。
 
 ```bash

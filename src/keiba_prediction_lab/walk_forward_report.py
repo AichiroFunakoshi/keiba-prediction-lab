@@ -142,12 +142,16 @@ def load_walk_forward_windows_bytes(content: bytes) -> tuple[WalkForwardWindow, 
 def evaluate_local_walk_forward(
     training_path: str | Path,
     windows_path: str | Path,
+    *,
+    track_condition_v2: bool = False,
 ) -> WalkForwardArtifact:
     windows_content = Path(windows_path).read_bytes()
     windows_sha256 = hashlib.sha256(windows_content).hexdigest()
     bundle = build_time_safe_training_bundle(training_path)
     result = run_walk_forward(
-        bundle.rows, load_walk_forward_windows_bytes(windows_content)
+        bundle.rows,
+        load_walk_forward_windows_bytes(windows_content),
+        track_condition_v2=track_condition_v2,
     )
     return WalkForwardArtifact(
         training_sha256=bundle.training_sha256,

@@ -40,8 +40,19 @@ CONDITIONAL_LOGIT_FEATURE_NAMES = (
     "trainer_win_rate",
 )
 
+TRACK_CONDITION_V2_FEATURE_NAMES = (
+    *CONDITIONAL_LOGIT_FEATURE_NAMES[:11],
+    "horse_surface_track_condition_win_rate",
+    *CONDITIONAL_LOGIT_FEATURE_NAMES[12:],
+    "horse_surface_track_condition_top3_rate",
+    "log_horse_surface_track_condition_starts",
+)
 
-def _raw_features(row: FeatureRow) -> tuple[float, ...]:
+
+def _raw_features(
+    row: FeatureRow,
+    feature_names: Sequence[str] = CONDITIONAL_LOGIT_FEATURE_NAMES,
+) -> tuple[float, ...]:
     if not row.race_id.strip() or not row.horse_id.strip():
         raise ValueError("race_id and horse_id must not be empty")
     if row.observed_at.tzinfo is None or row.observed_at.utcoffset() is None:
@@ -54,6 +65,7 @@ def _raw_features(row: FeatureRow) -> tuple[float, ...]:
         row.horse_distance_band_starts,
         row.jockey_starts,
         row.trainer_starts,
+        row.horse_surface_track_condition_starts,
     )
     rates = (
         row.horse_win_rate,
@@ -64,6 +76,8 @@ def _raw_features(row: FeatureRow) -> tuple[float, ...]:
         row.horse_distance_band_win_rate,
         row.jockey_win_rate,
         row.trainer_win_rate,
+        row.horse_surface_track_condition_win_rate,
+        row.horse_surface_track_condition_top3_rate,
     )
     if any(count < 0 for count in counts):
         raise ValueError("feature start counts must not be negative")
@@ -75,7 +89,7 @@ def _raw_features(row: FeatureRow) -> tuple[float, ...]:
         raise ValueError("body_weight_kg must be positive or None")
     if row.days_since_last_run is not None and row.days_since_last_run < 0:
         raise ValueError("days_since_last_run must not be negative")
-    values = (
+    legacy_values = (
         float(row.post_position),
         row.carried_weight_kg,
         float(row.body_weight_kg or 0),
@@ -94,6 +108,18 @@ def _raw_features(row: FeatureRow) -> tuple[float, ...]:
         log1p(row.trainer_starts),
         row.trainer_win_rate,
     )
+    if tuple(feature_names) == CONDITIONAL_LOGIT_FEATURE_NAMES:
+        values = legacy_values
+    elif tuple(feature_names) == TRACK_CONDITION_V2_FEATURE_NAMES:
+        values = (
+            *legacy_values[:11],
+            row.horse_surface_track_condition_win_rate,
+            *legacy_values[12:],
+            row.horse_surface_track_condition_top3_rate,
+            log1p(row.horse_surface_track_condition_starts),
+        )
+    else:
+        raise ValueError("unsupported conditional-logit feature schema")
     if any(not isfinite(value) for value in values):
         raise ValueError("model features must be finite")
     return values
@@ -146,6 +172,8 @@ class ConditionalLogitModel:
 
     @property
     def feature_names(self) -> tuple[str, ...]:
+        if self.model_version == "conditional-logit-track-condition-v2":
+            return TRACK_CONDITION_V2_FEATURE_NAMES
         return CONDITIONAL_LOGIT_FEATURE_NAMES
 
     def predict(self, rows: Sequence[FeatureRow]) -> tuple[PredictionRecord, ...]:
@@ -162,7 +190,12 @@ class ConditionalLogitModel:
         if rows[0].observed_at <= self.trained_through:
             raise ValueError("prediction must be later than all training rows")
 
-        vectors = [_standardize(_raw_features(row), self.means, self.scales) for row in rows]
+        vectors = [
+            _standardize(
+                _raw_features(row, self.feature_names), self.means, self.scales
+            )
+            for row in rows
+        ]
         scores = [sum(weight * value for weight, value in zip(self.coefficients, vector)) for vector in vectors]
         win_probabilities = _softmax(scores)
         largest = max(scores)
@@ -204,6 +237,8 @@ def fit_conditional_logit(
     epochs: int = 500,
     learning_rate: float = 0.1,
     l2_strength: float = 0.01,
+    feature_names: Sequence[str] = CONDITIONAL_LOGIT_FEATURE_NAMES,
+    model_version: str = "conditional-logit-v1",
 ) -> ConditionalLogitModel:
     """Fit a race-conditional winner model with deterministic batch descent."""
     if not rows:
@@ -215,10 +250,18 @@ def fit_conditional_logit(
     if l2_strength < 0.0:
         raise ValueError("l2_strength must not be negative")
 
+    selected_features = tuple(feature_names)
+    expected_version = {
+        CONDITIONAL_LOGIT_FEATURE_NAMES: "conditional-logit-v1",
+        TRACK_CONDITION_V2_FEATURE_NAMES: "conditional-logit-track-condition-v2",
+    }.get(selected_features)
+    if expected_version is None or model_version != expected_version:
+        raise ValueError("model_version does not match the feature schema")
+
     races: dict[str, list[TrainingRow]] = defaultdict(list)
     seen: set[tuple[str, str]] = set()
     for row in rows:
-        _raw_features(row.features)
+        _raw_features(row.features, selected_features)
         key = (row.features.race_id, row.features.horse_id)
         if key in seen:
             raise ValueError("training rows contain duplicate race and horse")
@@ -233,8 +276,8 @@ def fit_conditional_logit(
         if len({row.features.observed_at for row in race_rows}) != 1:
             raise ValueError("training race rows must share observed_at")
 
-    raw_vectors = [_raw_features(row.features) for row in rows]
-    feature_count = len(CONDITIONAL_LOGIT_FEATURE_NAMES)
+    raw_vectors = [_raw_features(row.features, selected_features) for row in rows]
+    feature_count = len(selected_features)
     means = tuple(
         sum(vector[index] for vector in raw_vectors) / len(raw_vectors)
         for index in range(feature_count)
@@ -251,7 +294,7 @@ def fit_conditional_logit(
     )
     vectors = {
         (row.features.race_id, row.features.horse_id): _standardize(
-            _raw_features(row.features), means, scales
+            _raw_features(row.features, selected_features), means, scales
         )
         for row in rows
     }
@@ -287,4 +330,5 @@ def fit_conditional_logit(
         means=means,
         scales=scales,
         trained_through=max(row.features.observed_at for row in rows),
+        model_version=model_version,
     )

@@ -78,6 +78,16 @@ class WalkForwardTest(unittest.TestCase):
             run_walk_forward(labeled_rows(), windows()),
         )
 
+    def test_can_evaluate_track_condition_v2(self) -> None:
+        result = run_walk_forward(
+            labeled_rows(), windows(), track_condition_v2=True
+        )
+
+        self.assertEqual(
+            result.aggregate_model_score.model_version,
+            "conditional-logit-track-condition-v2-temperature-v1",
+        )
+
     def test_rejects_overlapping_evaluation_periods(self) -> None:
         invalid = (
             windows()[0],

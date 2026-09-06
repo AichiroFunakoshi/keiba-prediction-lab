@@ -240,6 +240,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--calibration-races", type=int, default=0,
         help="reserve the newest N races for time-separated temperature calibration",
     )
+    train_model.add_argument(
+        "--track-condition-v2",
+        action="store_true",
+        help=(
+            "use surface-specific track-condition win/top3 history and sample size"
+        ),
+    )
 
     predict_race = subparsers.add_parser(
         "predict-race",
@@ -392,6 +399,11 @@ def _build_parser() -> argparse.ArgumentParser:
     walk_forward.add_argument(
         "--max-evaluation-races", type=int,
         default=MAX_FORMAL_EVALUATION_RACES,
+    )
+    walk_forward.add_argument(
+        "--track-condition-v2",
+        action="store_true",
+        help="evaluate the surface-specific track-condition feature schema",
     )
 
     audit_walk_forward = subparsers.add_parser(
@@ -842,6 +854,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             learning_rate=args.learning_rate,
             l2_strength=args.l2_strength,
             calibration_races=args.calibration_races,
+            track_condition_v2=args.track_condition_v2,
         )
         artifact = train_local_model_artifact(
             args.training, parameters=parameters
@@ -1141,7 +1154,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError(
                     "minimum evaluation races must not exceed maximum"
                 )
-            artifact = evaluate_local_walk_forward(args.training, args.windows)
+            artifact = evaluate_local_walk_forward(
+                args.training,
+                args.windows,
+                track_condition_v2=args.track_condition_v2,
+            )
             evaluation_races = artifact.result.aggregate_model_score.race_count
             if evaluation_races < args.min_evaluation_races:
                 raise ValueError(
