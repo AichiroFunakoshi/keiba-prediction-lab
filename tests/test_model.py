@@ -129,6 +129,15 @@ class ConditionalLogitModelTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "later than all training"):
             model.predict(old_rows)
 
+    def test_rejects_model_vectors_from_another_feature_schema(self) -> None:
+        model = replace(
+            fit_conditional_logit(training_rows()),
+            model_version="conditional-logit-track-condition-v2",
+        )
+
+        with self.assertRaisesRegex(ValueError, "model vectors do not match"):
+            model.predict(target_rows())
+
     def test_training_race_requires_winner(self) -> None:
         rows = tuple(
             TrainingRow(feature("no-winner", horse, START, 0.2), horse + 1)

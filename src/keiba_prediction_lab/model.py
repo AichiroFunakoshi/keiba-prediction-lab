@@ -177,6 +177,12 @@ class ConditionalLogitModel:
         return CONDITIONAL_LOGIT_FEATURE_NAMES
 
     def predict(self, rows: Sequence[FeatureRow]) -> tuple[PredictionRecord, ...]:
+        expected_feature_count = len(self.feature_names)
+        if any(
+            len(vector) != expected_feature_count
+            for vector in (self.coefficients, self.means, self.scales)
+        ):
+            raise ValueError("model vectors do not match the feature schema")
         if not rows:
             raise ValueError("at least one feature row is required")
         if len({row.race_id for row in rows}) != 1:
