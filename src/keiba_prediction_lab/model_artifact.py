@@ -17,14 +17,15 @@ from .calibration import (
 from .local_adapter import build_time_safe_training_bundle
 from .model import (
     CONDITIONAL_LOGIT_FEATURE_NAMES,
+    TRACK_CONDITION_V2_FEATURE_NAMES,
     ConditionalLogitModel,
     TrainingRow,
     fit_conditional_logit,
 )
 
 
-MODEL_ARTIFACT_SCHEMA_VERSION = "1.1"
-SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0", "1.1"})
+MODEL_ARTIFACT_SCHEMA_VERSION = "1.2"
+SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0", "1.1", "1.2"})
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class ModelTrainingParameters:
     learning_rate: float = 0.1
     l2_strength: float = 0.01
     calibration_races: int = 0
+    track_condition_v2: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -58,6 +60,8 @@ class ModelTrainingParameters:
             raise ValueError("l2_strength must be non-negative and finite")
         if type(self.calibration_races) is not int or self.calibration_races < 0:
             raise ValueError("calibration_races must be a non-negative integer")
+        if type(self.track_condition_v2) is not bool:
+            raise ValueError("track_condition_v2 must be a boolean")
 
 
 @dataclass(frozen=True)
@@ -89,7 +93,7 @@ class TrainedModelArtifact:
             raise ValueError("training_race_count must be positive")
         if self.training_row_count < 2 * self.training_race_count:
             raise ValueError("each training race must contain at least two rows")
-        expected = len(CONDITIONAL_LOGIT_FEATURE_NAMES)
+        expected = len(self.model.feature_names)
         vectors = (self.model.coefficients, self.model.means, self.model.scales)
         if any(len(vector) != expected for vector in vectors):
             raise ValueError("model vectors do not match the feature schema")
@@ -111,8 +115,14 @@ class TrainedModelArtifact:
         if self.model.model_version not in (
             "conditional-logit-v1",
             "conditional-logit-v1-temperature-v1",
+            "conditional-logit-track-condition-v2",
+            "conditional-logit-track-condition-v2-temperature-v1",
         ):
             raise ValueError("unsupported model_version")
+        if self.parameters.track_condition_v2 != self.model.model_version.startswith(
+            "conditional-logit-track-condition-v2"
+        ):
+            raise ValueError("track_condition_v2 does not match model_version")
         if isinstance(self.model, TemperatureCalibratedModel):
             if self.parameters.calibration_races < 1:
                 raise ValueError("calibrated model requires calibration_races")
@@ -158,6 +168,16 @@ def train_local_model_artifact(
         epochs=selected.epochs,
         learning_rate=selected.learning_rate,
         l2_strength=selected.l2_strength,
+        feature_names=(
+            TRACK_CONDITION_V2_FEATURE_NAMES
+            if selected.track_condition_v2
+            else CONDITIONAL_LOGIT_FEATURE_NAMES
+        ),
+        model_version=(
+            "conditional-logit-track-condition-v2"
+            if selected.track_condition_v2
+            else "conditional-logit-v1"
+        ),
     )
     model: ConditionalLogitModel | TemperatureCalibratedModel = base_model
     if calibration:
@@ -183,7 +203,7 @@ def _payload(artifact: TrainedModelArtifact) -> dict[str, object]:
     model_payload: dict[str, object] = {
         "model_version": artifact.model.model_version,
         "trained_through": artifact.model.trained_through.isoformat(),
-        "feature_names": list(CONDITIONAL_LOGIT_FEATURE_NAMES),
+        "feature_names": list(artifact.model.feature_names),
         "coefficients": list(artifact.model.coefficients),
         "means": list(artifact.model.means),
         "scales": list(artifact.model.scales),
@@ -204,6 +224,7 @@ def _payload(artifact: TrainedModelArtifact) -> dict[str, object]:
             "learning_rate": float(artifact.parameters.learning_rate),
             "l2_strength": float(artifact.parameters.l2_strength),
             "calibration_races": artifact.parameters.calibration_races,
+            "track_condition_v2": artifact.parameters.track_condition_v2,
         },
         "model": model_payload,
     }
@@ -265,8 +286,21 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
     parameters = _required(payload, "parameters", dict)
     model_payload = _required(payload, "model", dict)
     feature_names = _required(model_payload, "feature_names", list)
-    if feature_names != list(CONDITIONAL_LOGIT_FEATURE_NAMES):
+    model_version = _required(model_payload, "model_version", str)
+    base_model_version = model_version.removesuffix("-temperature-v1")
+    expected_features = {
+        "conditional-logit-v1": list(CONDITIONAL_LOGIT_FEATURE_NAMES),
+        "conditional-logit-track-condition-v2": list(
+            TRACK_CONDITION_V2_FEATURE_NAMES
+        ),
+    }.get(base_model_version)
+    if feature_names != expected_features:
         raise ValueError("model artifact feature schema is incompatible")
+    if (
+        base_model_version == "conditional-logit-track-condition-v2"
+        and schema_version != "1.2"
+    ):
+        raise ValueError("track-condition-v2 model requires artifact schema 1.2")
     base_model = ConditionalLogitModel(
         coefficients=_float_tuple(model_payload, "coefficients"),
         means=_float_tuple(model_payload, "means"),
@@ -274,14 +308,19 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
         trained_through=datetime.fromisoformat(
             _required(model_payload, "trained_through", str)
         ),
-        model_version="conditional-logit-v1",
+        model_version=base_model_version,
     )
-    model_version = _required(model_payload, "model_version", str)
-    if model_version == "conditional-logit-v1":
+    if model_version in (
+        "conditional-logit-v1",
+        "conditional-logit-track-condition-v2",
+    ):
         model: ConditionalLogitModel | TemperatureCalibratedModel = base_model
-    elif model_version == "conditional-logit-v1-temperature-v1":
-        if schema_version != "1.1":
-            raise ValueError("calibrated model requires artifact schema 1.1")
+    elif model_version in (
+        "conditional-logit-v1-temperature-v1",
+        "conditional-logit-track-condition-v2-temperature-v1",
+    ):
+        if schema_version not in ("1.1", "1.2"):
+            raise ValueError("calibrated model requires artifact schema 1.1 or newer")
         temperature = model_payload.get("temperature")
         calibrated_through = model_payload.get("calibrated_through")
         if (
@@ -309,6 +348,10 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
             calibration_races=(
                 _required(parameters, "calibration_races", int)
                 if "calibration_races" in parameters else 0
+            ),
+            track_condition_v2=(
+                _required(parameters, "track_condition_v2", bool)
+                if "track_condition_v2" in parameters else False
             ),
         ),
         model=model,

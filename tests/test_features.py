@@ -90,11 +90,27 @@ class FeatureGenerationTest(unittest.TestCase):
         self.assertEqual(horse_a.horse_venue_starts, 2)
         self.assertEqual(horse_a.horse_surface_starts, 2)
         self.assertEqual(horse_a.horse_track_condition_starts, 2)
+        self.assertEqual(horse_a.horse_surface_track_condition_starts, 2)
         self.assertEqual(horse_a.horse_distance_band_starts, 2)
         self.assertEqual(horse_a.jockey_starts, 6)
         self.assertEqual(horse_a.trainer_starts, 7)
         self.assertEqual(horse_a.days_since_last_run, 17)
         self.assertGreater(horse_a.horse_win_rate, first[1].horse_win_rate)
+
+    def test_surface_track_condition_does_not_mix_turf_and_dirt(self) -> None:
+        target = replace(
+            targets()[0],
+            horse_id="horse-b",
+            jockey_id="jockey-b",
+            surface=Surface.TURF,
+            track_condition="muddy",
+        )
+        row = generate_features(history(), (target,), prior_strength=2.0)[0]
+
+        self.assertEqual(row.horse_track_condition_starts, 1)
+        self.assertEqual(row.horse_surface_track_condition_starts, 0)
+        self.assertEqual(row.horse_surface_track_condition_win_rate, 0.25)
+        self.assertEqual(row.horse_surface_track_condition_top3_rate, 0.75)
 
     def test_unseen_runner_uses_smoothed_global_prior(self) -> None:
         row = generate_features(history(), targets(), prior_strength=2.0)[1]

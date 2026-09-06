@@ -16,7 +16,12 @@ from .domain import PredictionRecord, ResultRecord
 from .diagnostics import DiagnosticReport, diagnose_segments
 from .features import FeatureRow
 from .metrics import CalibrationSummary, calibration_summary
-from .model import TrainingRow, fit_conditional_logit
+from .model import (
+    CONDITIONAL_LOGIT_FEATURE_NAMES,
+    TRACK_CONDITION_V2_FEATURE_NAMES,
+    TrainingRow,
+    fit_conditional_logit,
+)
 
 
 @dataclass(frozen=True)
@@ -82,6 +87,8 @@ def _flatten(races: Sequence[Sequence[TrainingRow]]) -> tuple[TrainingRow, ...]:
 def run_walk_forward(
     rows: Sequence[TrainingRow],
     windows: Sequence[WalkForwardWindow],
+    *,
+    track_condition_v2: bool = False,
 ) -> WalkForwardResult:
     """Refit, recalibrate, and evaluate once for every chronological window."""
     if not rows:
@@ -117,7 +124,19 @@ def run_walk_forward(
         if not training or not calibration or not evaluation:
             raise ValueError("every window requires training, calibration, and evaluation races")
 
-        base_model = fit_conditional_logit(_flatten(training))
+        base_model = fit_conditional_logit(
+            _flatten(training),
+            feature_names=(
+                TRACK_CONDITION_V2_FEATURE_NAMES
+                if track_condition_v2
+                else CONDITIONAL_LOGIT_FEATURE_NAMES
+            ),
+            model_version=(
+                "conditional-logit-track-condition-v2"
+                if track_condition_v2
+                else "conditional-logit-v1"
+            ),
+        )
         calibrated_model = fit_temperature_scaling(
             base_model,
             tuple(

@@ -116,6 +116,49 @@ class ModelArtifactTest(unittest.TestCase):
             "2026-01-08T10:00:00+09:00",
         )
 
+    def test_track_condition_v2_model_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            output = root / "model.json"
+            _write_training(training)
+            artifact = train_local_model_artifact(
+                training,
+                parameters=ModelTrainingParameters(
+                    epochs=5, track_condition_v2=True
+                ),
+            )
+            save_trained_model_artifact(artifact, output)
+            loaded = load_trained_model_artifact(output)
+
+        self.assertEqual(loaded, artifact)
+        self.assertTrue(loaded.parameters.track_condition_v2)
+        self.assertEqual(
+            loaded.model.model_version,
+            "conditional-logit-track-condition-v2",
+        )
+        self.assertEqual(len(loaded.model.feature_names), 19)
+
+    def test_track_condition_v2_rejects_legacy_artifact_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            training = root / "training.csv"
+            output = root / "model.json"
+            _write_training(training)
+            artifact = train_local_model_artifact(
+                training,
+                parameters=ModelTrainingParameters(
+                    epochs=5, track_condition_v2=True
+                ),
+            )
+            save_trained_model_artifact(artifact, output)
+            envelope = json.loads(output.read_text(encoding="utf-8"))
+            envelope["schema_version"] = "1.1"
+            output.write_text(json.dumps(envelope), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "requires artifact schema 1.2"):
+                load_trained_model_artifact(output)
+
     def test_same_input_and_parameters_produce_same_payload_digest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

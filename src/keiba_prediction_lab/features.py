@@ -147,6 +147,9 @@ class FeatureRow:
     trainer_starts: int
     trainer_win_rate: float
     venue: str = "unknown"
+    horse_surface_track_condition_starts: int = 0
+    horse_surface_track_condition_win_rate: float = 0.0
+    horse_surface_track_condition_top3_rate: float = 0.0
 
 
 @dataclass
@@ -221,6 +224,9 @@ def generate_features(
     venue_rates: dict[tuple[str, str], _Rate] = defaultdict(_Rate)
     surface_rates: dict[tuple[str, Surface], _Rate] = defaultdict(_Rate)
     condition_rates: dict[tuple[str, str], _Rate] = defaultdict(_Rate)
+    surface_condition_rates: dict[
+        tuple[str, Surface, str], _Rate
+    ] = defaultdict(_Rate)
     distance_rates: dict[tuple[str, str], _Rate] = defaultdict(_Rate)
     jockey_rates: dict[str, _Rate] = defaultdict(_Rate)
     trainer_rates: dict[str, _Rate] = defaultdict(_Rate)
@@ -234,6 +240,9 @@ def generate_features(
         venue_rates[(item.horse_id, item.venue)].add(*values)
         surface_rates[(item.horse_id, item.surface)].add(*values)
         condition_rates[(item.horse_id, item.track_condition)].add(*values)
+        surface_condition_rates[
+            (item.horse_id, item.surface, item.track_condition)
+        ].add(*values)
         distance_rates[(item.horse_id, distance_band(item.distance_m))].add(*values)
         jockey_rates[item.jockey_id].add(*values)
         trainer_rates[item.trainer_id].add(*values)
@@ -251,6 +260,9 @@ def generate_features(
         venue = venue_rates[(runner.horse_id, runner.venue)]
         surface = surface_rates[(runner.horse_id, runner.surface)]
         condition = condition_rates[(runner.horse_id, runner.track_condition)]
+        surface_condition = surface_condition_rates[
+            (runner.horse_id, runner.surface, runner.track_condition)
+        ]
         band = distance_band(runner.distance_m)
         distance = distance_rates[(runner.horse_id, band)]
         jockey = jockey_rates[runner.jockey_id]
@@ -281,5 +293,13 @@ def generate_features(
             trainer_starts=trainer.starts,
             trainer_win_rate=win_rate(trainer),
             venue=runner.venue,
+            horse_surface_track_condition_starts=surface_condition.starts,
+            horse_surface_track_condition_win_rate=win_rate(surface_condition),
+            horse_surface_track_condition_top3_rate=_smoothed(
+                surface_condition.top3,
+                surface_condition.starts,
+                top3_prior,
+                prior_strength,
+            ),
         ))
     return tuple(rows)

@@ -93,6 +93,10 @@ class TemperatureCalibratedModel:
         return self.base_model.scales
 
     @property
+    def feature_names(self) -> tuple[str, ...]:
+        return self.base_model.feature_names
+
+    @property
     def trained_through(self) -> datetime:
         return self.base_model.trained_through
 
