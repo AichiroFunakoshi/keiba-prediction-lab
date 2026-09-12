@@ -44,6 +44,8 @@ def model_identities(race_day, expected_hash):
         for race in venue['races']:
             audit = load_audited_prediction_bundle(path.parent / race['prediction_bundle'])
             result[audit.bundle.actual_prediction.race_id] = audit.audit.model_sha256
+    if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+        raise ValueError('race day changed during model verification')
     return result
 
 
@@ -162,6 +164,8 @@ def review_market_files(dataset, selection_end):
                 observed_at=forecast.observed_at.isoformat(), result_acquired_at=manifest['acquired_at'],
                 model_version=race.source_model_version,model_sha256=identities[race.race_id],model=model,odds=odds,winners=winners,
                 top3=[_normalized_name('horse', h['name']) for h in ordered[:3]]))
+        if any(path.read_bytes() != raw[key] for key, path in paths.items()):
+            raise ValueError('review inputs changed during verification')
     return dict(summary=review_rows(rows, selection_end), rows=rows, source_hashes=sources)
 
 
