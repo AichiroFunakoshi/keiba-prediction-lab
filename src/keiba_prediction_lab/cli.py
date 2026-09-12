@@ -62,6 +62,8 @@ from .market_blend import (
     build_market_blend_forecast_from_snapshot,
     save_market_blend_forecast,
 )
+from .result_observation import parse_result_observation
+from .market_review import review_market_files, save_market_review, reviewed_weight, model_identities
 from .model_artifact import (
     ModelTrainingParameters,
     save_trained_model_artifact,
@@ -313,6 +315,26 @@ def _build_parser() -> argparse.ArgumentParser:
     market_blend.add_argument("snapshot", type=Path)
     market_blend.add_argument("--market-weight", type=float, default=DEFAULT_MARKET_WEIGHT)
     market_blend.add_argument("--output", type=Path, required=True)
+
+    result_observation = subparsers.add_parser("import-result-observation", help="extract retrospective weather and results from saved JRA HTML")
+    result_observation.add_argument("html", type=Path)
+    result_observation.add_argument("--source-url", required=True)
+    result_observation.add_argument("--acquired-at", required=True)
+    result_observation.add_argument("--output", type=Path, required=True)
+
+    weight_review = subparsers.add_parser(
+        "review-market-weights", help="compare saved odds weights with chronological selection and holdout gates",
+    )
+    weight_review.add_argument("dataset", type=Path)
+    weight_review.add_argument("--selection-end", required=True)
+    weight_review.add_argument("--output", type=Path, required=True)
+    reviewed_blend = subparsers.add_parser(
+        "build-reviewed-market-blend", help="build a future forecast using an audited weight review or the unchanged fallback",
+    )
+    reviewed_blend.add_argument("race_day", type=Path)
+    reviewed_blend.add_argument("snapshot", type=Path)
+    reviewed_blend.add_argument("review", type=Path)
+    reviewed_blend.add_argument("--output", type=Path, required=True)
 
     predict_win5 = subparsers.add_parser(
         "predict-win5",
@@ -978,6 +1000,56 @@ def main(argv: Sequence[str] | None = None) -> int:
             "max_market_rank": report.policy.max_market_rank,
             "observed_at": report.observed_at.isoformat(),
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "import-result-observation":
+        try:
+            observation = parse_result_observation(args.html.read_bytes(), args.source_url, datetime.fromisoformat(args.acquired_at))
+            with args.output.open("x", encoding="utf-8") as handle:
+                json.dump(observation, handle, ensure_ascii=False, indent=2)
+        except (OSError, ValueError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}))
+            return 1
+        print(json.dumps({"is_valid": True, "race_id": observation["race_id"], "output": str(args.output)}))
+        return 0
+
+    if args.command == "review-market-weights":
+        try:
+            report = review_market_files(args.dataset, args.selection_end)
+            save_market_review(report, args.output)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}))
+            return 1
+        print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "build-reviewed-market-blend":
+        try:
+            forecast = build_market_blend_forecast_from_snapshot(args.race_day, args.snapshot)
+            versions = {r.source_model_version for r in forecast.races}
+            if len(versions) != 1:
+                raise ValueError("reviewed forecast requires a single source model")
+            identities = model_identities(args.race_day, forecast.race_day_manifest_sha256)
+            hashes = {identities[r.race_id] for r in forecast.races}
+            if len(hashes) != 1:
+                raise ValueError('reviewed forecast requires a single model artifact')
+            weight = reviewed_weight(args.review, next(iter(versions)), forecast.observed_at, next(iter(hashes)))
+            if weight != DEFAULT_MARKET_WEIGHT:
+                reweighted = build_market_blend_forecast_from_snapshot(args.race_day, args.snapshot, market_weight=weight)
+                def identity(value):
+                    return (value.observed_at, value.cards_sha256, value.race_day_manifest_sha256,
+                            tuple((r.race_id, r.scheduled_at, r.source_model_version, r.input_data_version,
+                                   tuple(sorted((h.horse_id, h.model_probability, h.market_odds) for h in r.runners)))
+                                  for r in value.races))
+                if identity(reweighted) != identity(forecast):
+                    raise ValueError("prediction inputs changed while applying weight review")
+                forecast = reweighted
+            digest = save_market_blend_forecast(forecast, args.output)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}))
+            return 1
+        print(json.dumps({"is_valid": True, "market_weight": weight, "sha256": digest,
+                          "output": str(args.output)}, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "build-market-blend":
