@@ -19,6 +19,7 @@ from .metrics import CalibrationSummary, calibration_summary
 from .model import (
     CONDITIONAL_LOGIT_FEATURE_NAMES,
     TRACK_CONDITION_V2_FEATURE_NAMES,
+    EVIDENCE_NEUTRAL_V3_FEATURE_NAMES,
     TrainingRow,
     fit_conditional_logit,
 )
@@ -89,8 +90,13 @@ def run_walk_forward(
     windows: Sequence[WalkForwardWindow],
     *,
     track_condition_v2: bool = False,
+    evidence_neutral_v3: bool = False,
 ) -> WalkForwardResult:
     """Refit, recalibrate, and evaluate once for every chronological window."""
+    if type(track_condition_v2) is not bool or type(evidence_neutral_v3) is not bool:
+        raise ValueError("feature flags must be boolean")
+    if track_condition_v2 and evidence_neutral_v3:
+        raise ValueError("choose one feature schema")
     if not rows:
         raise ValueError("at least one labeled row is required")
     if not windows:
@@ -127,12 +133,14 @@ def run_walk_forward(
         base_model = fit_conditional_logit(
             _flatten(training),
             feature_names=(
-                TRACK_CONDITION_V2_FEATURE_NAMES
+                EVIDENCE_NEUTRAL_V3_FEATURE_NAMES
+                if evidence_neutral_v3 else TRACK_CONDITION_V2_FEATURE_NAMES
                 if track_condition_v2
                 else CONDITIONAL_LOGIT_FEATURE_NAMES
             ),
             model_version=(
-                "conditional-logit-track-condition-v2"
+                "conditional-logit-evidence-neutral-v3"
+                if evidence_neutral_v3 else "conditional-logit-track-condition-v2"
                 if track_condition_v2
                 else "conditional-logit-v1"
             ),

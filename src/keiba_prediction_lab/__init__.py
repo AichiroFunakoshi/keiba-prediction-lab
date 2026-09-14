@@ -186,6 +186,7 @@ from .local_http import (
 from .model import (
     CONDITIONAL_LOGIT_FEATURE_NAMES,
     TRACK_CONDITION_V2_FEATURE_NAMES,
+    EVIDENCE_NEUTRAL_V3_FEATURE_NAMES,
     ConditionalLogitModel,
     TrainingRow,
     fit_conditional_logit,
@@ -346,6 +347,7 @@ __all__ = [
     "ConditionalLogitModel",
     "CONDITIONAL_LOGIT_FEATURE_NAMES",
     "TRACK_CONDITION_V2_FEATURE_NAMES",
+    "EVIDENCE_NEUTRAL_V3_FEATURE_NAMES",
     "DEFAULT_GENERATOR_VERSION",
     "DEFAULT_BOOTSTRAP_SAMPLES",
     "DEFAULT_BOOTSTRAP_SEED",
