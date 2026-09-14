@@ -49,6 +49,16 @@ TRACK_CONDITION_V2_FEATURE_NAMES = (
 )
 
 
+# Counts remain inputs to empirical-rate shrinkage, not direct ability scores.
+EVIDENCE_NEUTRAL_V3_FEATURE_NAMES = tuple(
+    name for name in TRACK_CONDITION_V2_FEATURE_NAMES
+    if name not in {
+        "log_horse_starts", "log_jockey_starts", "log_trainer_starts",
+        "log_horse_surface_track_condition_starts",
+    }
+)
+
+
 def _raw_features(
     row: FeatureRow,
     feature_names: Sequence[str] = CONDITIONAL_LOGIT_FEATURE_NAMES,
@@ -110,7 +120,7 @@ def _raw_features(
     )
     if tuple(feature_names) == CONDITIONAL_LOGIT_FEATURE_NAMES:
         values = legacy_values
-    elif tuple(feature_names) == TRACK_CONDITION_V2_FEATURE_NAMES:
+    elif tuple(feature_names) in (TRACK_CONDITION_V2_FEATURE_NAMES, EVIDENCE_NEUTRAL_V3_FEATURE_NAMES):
         values = (
             *legacy_values[:11],
             row.horse_surface_track_condition_win_rate,
@@ -118,6 +128,9 @@ def _raw_features(
             row.horse_surface_track_condition_top3_rate,
             log1p(row.horse_surface_track_condition_starts),
         )
+        if tuple(feature_names) == EVIDENCE_NEUTRAL_V3_FEATURE_NAMES:
+            by_name = dict(zip(TRACK_CONDITION_V2_FEATURE_NAMES, values))
+            values = tuple(by_name[name] for name in EVIDENCE_NEUTRAL_V3_FEATURE_NAMES)
     else:
         raise ValueError("unsupported conditional-logit feature schema")
     if any(not isfinite(value) for value in values):
@@ -174,6 +187,8 @@ class ConditionalLogitModel:
     def feature_names(self) -> tuple[str, ...]:
         if self.model_version == "conditional-logit-track-condition-v2":
             return TRACK_CONDITION_V2_FEATURE_NAMES
+        if self.model_version == "conditional-logit-evidence-neutral-v3":
+            return EVIDENCE_NEUTRAL_V3_FEATURE_NAMES
         return CONDITIONAL_LOGIT_FEATURE_NAMES
 
     def predict(self, rows: Sequence[FeatureRow]) -> tuple[PredictionRecord, ...]:
@@ -260,6 +275,7 @@ def fit_conditional_logit(
     expected_version = {
         CONDITIONAL_LOGIT_FEATURE_NAMES: "conditional-logit-v1",
         TRACK_CONDITION_V2_FEATURE_NAMES: "conditional-logit-track-condition-v2",
+        EVIDENCE_NEUTRAL_V3_FEATURE_NAMES: "conditional-logit-evidence-neutral-v3",
     }.get(selected_features)
     if expected_version is None or model_version != expected_version:
         raise ValueError("model_version does not match the feature schema")

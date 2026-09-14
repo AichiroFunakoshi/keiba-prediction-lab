@@ -281,6 +281,8 @@ macOSのFinderからは、リポジトリ直下の実行可能ファイル`open-
 
 読み取り専用UIはRaceWeave（レースウィーヴ）というmacOSアプリにも包装できる。`python -m pip install -e '.[desktop]'`後に`build-raceweave-app.command`を実行し、Git除外済みの`dist/RaceWeave.app`を生成する。個人利用版はad-hoc署名を検証するが、Developer ID署名と公証は未実施である。Finder起動時は`race-day.json`を選択し、隣接する開催日来歴と全予測バンドルを再監査して表示する。キャンセル時だけ合成デモを表示し、実データをアプリやGitHubへ同梱しない。詳細は[macOSアプリ手順](DESKTOP_APP.md)を参照する。
 
+`--evidence-neutral-v3` は、馬場対応の率を残し、履歴件数4項目の直接加点を外す比較用候補である。既定モデルは変更しない。採用には同一固定期間の1着一致と確率誤差、および未使用開催での確認が必要。詳細は[履歴件数の直接加点を外す候補](EVIDENCE_NEUTRAL_V3.md)を参照する。
+
 ## 9. 現在の既知の限界
 
 - 無料かつ利用許諾が明確な標準データ経路は未確定。JRA公開ページ取得は明示同意必須の実験経路

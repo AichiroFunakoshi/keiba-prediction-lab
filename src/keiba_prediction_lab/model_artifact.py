@@ -18,14 +18,15 @@ from .local_adapter import build_time_safe_training_bundle
 from .model import (
     CONDITIONAL_LOGIT_FEATURE_NAMES,
     TRACK_CONDITION_V2_FEATURE_NAMES,
+    EVIDENCE_NEUTRAL_V3_FEATURE_NAMES,
     ConditionalLogitModel,
     TrainingRow,
     fit_conditional_logit,
 )
 
 
-MODEL_ARTIFACT_SCHEMA_VERSION = "1.2"
-SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0", "1.1", "1.2"})
+MODEL_ARTIFACT_SCHEMA_VERSION = "1.3"
+SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3"})
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class ModelTrainingParameters:
     l2_strength: float = 0.01
     calibration_races: int = 0
     track_condition_v2: bool = False
+    evidence_neutral_v3: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -62,6 +64,10 @@ class ModelTrainingParameters:
             raise ValueError("calibration_races must be a non-negative integer")
         if type(self.track_condition_v2) is not bool:
             raise ValueError("track_condition_v2 must be a boolean")
+        if type(self.evidence_neutral_v3) is not bool:
+            raise ValueError("evidence_neutral_v3 must be a boolean")
+        if self.track_condition_v2 and self.evidence_neutral_v3:
+            raise ValueError("choose one feature schema")
 
 
 @dataclass(frozen=True)
@@ -117,12 +123,18 @@ class TrainedModelArtifact:
             "conditional-logit-v1-temperature-v1",
             "conditional-logit-track-condition-v2",
             "conditional-logit-track-condition-v2-temperature-v1",
+            "conditional-logit-evidence-neutral-v3",
+            "conditional-logit-evidence-neutral-v3-temperature-v1",
         ):
             raise ValueError("unsupported model_version")
         if self.parameters.track_condition_v2 != self.model.model_version.startswith(
             "conditional-logit-track-condition-v2"
         ):
             raise ValueError("track_condition_v2 does not match model_version")
+        if self.parameters.evidence_neutral_v3 != self.model.model_version.startswith(
+            "conditional-logit-evidence-neutral-v3"
+        ):
+            raise ValueError("evidence_neutral_v3 does not match model_version")
         if isinstance(self.model, TemperatureCalibratedModel):
             if self.parameters.calibration_races < 1:
                 raise ValueError("calibrated model requires calibration_races")
@@ -169,12 +181,14 @@ def train_local_model_artifact(
         learning_rate=selected.learning_rate,
         l2_strength=selected.l2_strength,
         feature_names=(
-            TRACK_CONDITION_V2_FEATURE_NAMES
+            EVIDENCE_NEUTRAL_V3_FEATURE_NAMES
+            if selected.evidence_neutral_v3 else TRACK_CONDITION_V2_FEATURE_NAMES
             if selected.track_condition_v2
             else CONDITIONAL_LOGIT_FEATURE_NAMES
         ),
         model_version=(
-            "conditional-logit-track-condition-v2"
+            "conditional-logit-evidence-neutral-v3"
+            if selected.evidence_neutral_v3 else "conditional-logit-track-condition-v2"
             if selected.track_condition_v2
             else "conditional-logit-v1"
         ),
@@ -225,6 +239,7 @@ def _payload(artifact: TrainedModelArtifact) -> dict[str, object]:
             "l2_strength": float(artifact.parameters.l2_strength),
             "calibration_races": artifact.parameters.calibration_races,
             "track_condition_v2": artifact.parameters.track_condition_v2,
+            "evidence_neutral_v3": artifact.parameters.evidence_neutral_v3,
         },
         "model": model_payload,
     }
@@ -290,6 +305,7 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
     base_model_version = model_version.removesuffix("-temperature-v1")
     expected_features = {
         "conditional-logit-v1": list(CONDITIONAL_LOGIT_FEATURE_NAMES),
+        "conditional-logit-evidence-neutral-v3": list(EVIDENCE_NEUTRAL_V3_FEATURE_NAMES),
         "conditional-logit-track-condition-v2": list(
             TRACK_CONDITION_V2_FEATURE_NAMES
         ),
@@ -298,9 +314,14 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
         raise ValueError("model artifact feature schema is incompatible")
     if (
         base_model_version == "conditional-logit-track-condition-v2"
-        and schema_version != "1.2"
+        and schema_version not in ("1.2", "1.3")
     ):
-        raise ValueError("track-condition-v2 model requires artifact schema 1.2")
+        raise ValueError("track-condition-v2 model requires artifact schema 1.2 or newer")
+    if (
+        base_model_version == "conditional-logit-evidence-neutral-v3"
+        and schema_version != "1.3"
+    ):
+        raise ValueError("evidence-neutral-v3 model requires artifact schema 1.3")
     base_model = ConditionalLogitModel(
         coefficients=_float_tuple(model_payload, "coefficients"),
         means=_float_tuple(model_payload, "means"),
@@ -313,13 +334,15 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
     if model_version in (
         "conditional-logit-v1",
         "conditional-logit-track-condition-v2",
+        "conditional-logit-evidence-neutral-v3",
     ):
         model: ConditionalLogitModel | TemperatureCalibratedModel = base_model
     elif model_version in (
         "conditional-logit-v1-temperature-v1",
         "conditional-logit-track-condition-v2-temperature-v1",
+        "conditional-logit-evidence-neutral-v3-temperature-v1",
     ):
-        if schema_version not in ("1.1", "1.2"):
+        if schema_version not in ("1.1", "1.2", "1.3"):
             raise ValueError("calibrated model requires artifact schema 1.1 or newer")
         temperature = model_payload.get("temperature")
         calibrated_through = model_payload.get("calibrated_through")
@@ -348,6 +371,10 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
             calibration_races=(
                 _required(parameters, "calibration_races", int)
                 if "calibration_races" in parameters else 0
+            ),
+            evidence_neutral_v3=(
+                _required(parameters, "evidence_neutral_v3", bool)
+                if "evidence_neutral_v3" in parameters else False
             ),
             track_condition_v2=(
                 _required(parameters, "track_condition_v2", bool)
