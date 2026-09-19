@@ -67,6 +67,11 @@ RECENT_FORM_V4_FEATURE_NAMES = (
 )
 
 
+ABILITY_V5_FEATURE_NAMES = (*RECENT_FORM_V4_FEATURE_NAMES,
+    "opponent_rating", "recent_field_percentile", "course_form",
+    "distance_surface_form", "jockey_course_win_rate", "carried_weight_change")
+
+
 def _raw_features(
     row: FeatureRow,
     feature_names: Sequence[str] = CONDITIONAL_LOGIT_FEATURE_NAMES,
@@ -128,7 +133,7 @@ def _raw_features(
     )
     if tuple(feature_names) == CONDITIONAL_LOGIT_FEATURE_NAMES:
         values = legacy_values
-    elif tuple(feature_names) in (TRACK_CONDITION_V2_FEATURE_NAMES, EVIDENCE_NEUTRAL_V3_FEATURE_NAMES, RECENT_FORM_V4_FEATURE_NAMES):
+    elif tuple(feature_names) in (TRACK_CONDITION_V2_FEATURE_NAMES, EVIDENCE_NEUTRAL_V3_FEATURE_NAMES, RECENT_FORM_V4_FEATURE_NAMES, ABILITY_V5_FEATURE_NAMES):
         values = (
             *legacy_values[:11],
             row.horse_surface_track_condition_win_rate,
@@ -136,10 +141,10 @@ def _raw_features(
             row.horse_surface_track_condition_top3_rate,
             log1p(row.horse_surface_track_condition_starts),
         )
-        if tuple(feature_names) in (EVIDENCE_NEUTRAL_V3_FEATURE_NAMES, RECENT_FORM_V4_FEATURE_NAMES):
+        if tuple(feature_names) in (EVIDENCE_NEUTRAL_V3_FEATURE_NAMES, RECENT_FORM_V4_FEATURE_NAMES, ABILITY_V5_FEATURE_NAMES):
             by_name = dict(zip(TRACK_CONDITION_V2_FEATURE_NAMES, values))
             values = tuple(by_name[name] for name in EVIDENCE_NEUTRAL_V3_FEATURE_NAMES)
-        if tuple(feature_names) == RECENT_FORM_V4_FEATURE_NAMES:
+        if tuple(feature_names) in (RECENT_FORM_V4_FEATURE_NAMES, ABILITY_V5_FEATURE_NAMES):
             if any(not 0 <= rate <= 1 for rate in (
                 row.recent_reciprocal_finish, row.recent_top3_rate, row.horse_jockey_top3_rate
             )):
@@ -152,6 +157,8 @@ def _raw_features(
                 row.body_weight_change_pct if row.body_weight_change_pct is not None else 0.0,
                 float(row.body_weight_change_pct is None),
             )
+        if tuple(feature_names) == ABILITY_V5_FEATURE_NAMES:
+            values += tuple(getattr(row, name) for name in ABILITY_V5_FEATURE_NAMES[len(RECENT_FORM_V4_FEATURE_NAMES):])
     else:
         raise ValueError("unsupported conditional-logit feature schema")
     if any(not isfinite(value) for value in values):
@@ -206,6 +213,8 @@ class ConditionalLogitModel:
 
     @property
     def feature_names(self) -> tuple[str, ...]:
+        if self.model_version == "conditional-logit-ability-v5":
+            return ABILITY_V5_FEATURE_NAMES
         if self.model_version == "conditional-logit-recent-form-v4":
             return RECENT_FORM_V4_FEATURE_NAMES
         if self.model_version == "conditional-logit-track-condition-v2":
@@ -300,6 +309,7 @@ def fit_conditional_logit(
         TRACK_CONDITION_V2_FEATURE_NAMES: "conditional-logit-track-condition-v2",
         EVIDENCE_NEUTRAL_V3_FEATURE_NAMES: "conditional-logit-evidence-neutral-v3",
         RECENT_FORM_V4_FEATURE_NAMES: "conditional-logit-recent-form-v4",
+        ABILITY_V5_FEATURE_NAMES: "conditional-logit-ability-v5",
     }.get(selected_features)
     if expected_version is None or model_version != expected_version:
         raise ValueError("model_version does not match the feature schema")

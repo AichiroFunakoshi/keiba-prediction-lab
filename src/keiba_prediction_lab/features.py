@@ -158,6 +158,12 @@ class FeatureRow:
     distance_change_km: float = 0.0
     surface_changed: bool = False
     body_weight_change_pct: float | None = None
+    opponent_rating: float = 0.0
+    recent_field_percentile: float = 0.5
+    course_form: float = 0.5
+    distance_surface_form: float = 0.5
+    jockey_course_win_rate: float = 0.0
+    carried_weight_change: float = 0.0
 
 
 @dataclass
@@ -227,6 +233,19 @@ def generate_features(
             win_credit[key] = 1.0 / len(winners) if item.finish_position == 1 else 0.0
             top3_credit[key] = place_credit if item.finish_position <= 3 else 0.0
 
+    # Pairwise ratings use past results only; no odds or target outcomes.
+    ratings: dict[str, float] = defaultdict(float)
+    field_percentile = {}
+    for _, performances in sorted(by_race.items(), key=lambda pair: (max(h.result_known_at for h in pair[1]), pair[0])):
+        count = len(performances)
+        before = {h.horse_id: ratings[h.horse_id] for h in performances}
+        for h in performances:
+            opponents = [o for o in performances if o.horse_id != h.horse_id]
+            score = sum(1.0 if h.finish_position < o.finish_position else .5 if h.finish_position == o.finish_position else 0.0 for o in opponents)
+            field_percentile[(h.race_id,h.horse_id)] = score / len(opponents) if opponents else .5
+            expected = sum(1 / (1 + exp(max(-30, min(30, before[o.horse_id]-before[h.horse_id])))) for o in opponents)
+            ratings[h.horse_id] += .25 * (score-expected) / max(1,count-1)
+
     global_rate = _Rate()
     horse_rates: dict[str, _Rate] = defaultdict(_Rate)
     venue_rates: dict[tuple[str, str], _Rate] = defaultdict(_Rate)
@@ -241,6 +260,7 @@ def generate_features(
     latest_run: dict[str, datetime] = {}
     horse_history: dict[str, list[RacePerformance]] = defaultdict(list)
     horse_jockey_rates: dict[tuple[str, str], _Rate] = defaultdict(_Rate)
+    jockey_course_rates = defaultdict(_Rate)
 
     for item in sorted(history, key=lambda row: (row.scheduled_at, row.race_id, row.horse_id)):
         key = (item.race_id, item.horse_id)
@@ -255,6 +275,7 @@ def generate_features(
         ].add(*values)
         distance_rates[(item.horse_id, distance_band(item.distance_m))].add(*values)
         jockey_rates[item.jockey_id].add(*values)
+        jockey_course_rates[(item.jockey_id,item.venue,item.surface)].add(*values)
         trainer_rates[item.trainer_id].add(*values)
         latest_run[item.horse_id] = item.scheduled_at
         horse_history[item.horse_id].append(item)
@@ -297,6 +318,10 @@ def generate_features(
             if last and last.body_weight_kg is not None
             and runner.body_weight_kg is not None else None
         )
+        course_runs = [h for h in horse_history[runner.horse_id] if h.venue == runner.venue and h.surface == runner.surface]
+        distance_runs = [h for h in horse_history[runner.horse_id] if h.surface == runner.surface and distance_band(h.distance_m) == band]
+        def form(runs):
+            return (sum(field_percentile[(h.race_id,h.horse_id)] for h in runs) + .5 * prior_strength) / (len(runs)+prior_strength)
         rows.append(FeatureRow(
             race_id=runner.race_id,
             horse_id=runner.horse_id,
@@ -322,6 +347,12 @@ def generate_features(
             trainer_starts=trainer.starts,
             trainer_win_rate=win_rate(trainer),
             venue=runner.venue,
+            opponent_rating=ratings[runner.horse_id],
+            recent_field_percentile=(sum(w*field_percentile[(h.race_id,h.horse_id)] for w,h in zip(weights,recent)) / weight_sum if weight_sum else .5),
+            course_form=form(course_runs),
+            distance_surface_form=form(distance_runs),
+            jockey_course_win_rate=win_rate(jockey_course_rates[(runner.jockey_id,runner.venue,runner.surface)]),
+            carried_weight_change=runner.carried_weight_kg-last.carried_weight_kg if last else 0.0,
             recent_reciprocal_finish=recent_score,
             recent_top3_rate=recent_top3,
             recent_form_missing=not bool(recent),

@@ -37,7 +37,7 @@
     <section id="race-ledger" class="race-ledger" aria-labelledby="race-ledger-title">
       <h1 id="race-ledger-title" class="visually-hidden">全レース予測一覧</h1>
       <div class="ledger-header" aria-hidden="true">
-        <span>R</span><span>発走時刻</span><span>予測1着</span><span>1着的中率</span><span>正式候補 三連単（1点100円）</span><span>詳細</span>
+        <span>R</span><span>発走時刻</span><span>予測1着</span><span>推定1着確率</span><span>正式候補 三連単（1点100円）</span><span>詳細</span>
       </div>
       <div id="race-rows" class="race-rows"></div>
     </section>
@@ -101,6 +101,11 @@
           </div>
         </section>
 
+        <section id="explanations" class="explanation-section" hidden>
+          <h2>独自評価の根拠</h2>
+          <p>同レース内での評価への寄与です。情報の欠測に伴う補正も含み、勝因や確率の増減幅を示すものではありません。</p>
+          <div id="explanation-rows"></div>
+        </section>
         <section class="shadow-section" aria-labelledby="shadow-title">
           <div class="section-heading">
             <h2 id="shadow-title">影予測（購入しない・すべて0円）</h2>
@@ -116,7 +121,7 @@
       <section id="validation" class="validation" aria-labelledby="validation-title">
         <h2 id="validation-title">モデル検証</h2>
         <div class="metric"><span>評価レース</span><strong id="metric-races">—</strong></div>
-        <div class="metric"><span>1着的中率</span><strong id="metric-model">—</strong></div>
+        <div class="metric"><span>推定1着確率</span><strong id="metric-model">—</strong></div>
         <div class="metric"><span>一様予測</span><strong id="metric-uniform">—</strong></div>
         <div class="metric"><span>ECE</span><strong id="metric-ece">—</strong></div>
         <p>成績は将来の的中を保証しません</p>

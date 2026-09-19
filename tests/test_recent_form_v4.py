@@ -69,7 +69,7 @@ class RecentFormV4Test(unittest.TestCase):
             loaded = load_trained_model_artifact(p/'model.json')
             self.assertEqual(loaded.model, artifact.model)
             self.assertEqual(loaded.model.feature_names, RECENT_FORM_V4_FEATURE_NAMES)
-            self.assertEqual(json.loads((p/'model.json').read_text())['schema_version'],'1.4')
+            self.assertEqual(json.loads((p/'model.json').read_text())['schema_version'],'1.5')
             with self.assertRaises(ValueError):
                 replace(loaded, parameters=replace(loaded.parameters,recent_form_v4=False))
         for kwargs in [dict(track_condition_v2=True),dict(evidence_neutral_v3=True),dict(recent_form_v4=1)]:

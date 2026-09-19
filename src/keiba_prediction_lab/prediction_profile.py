@@ -10,7 +10,8 @@ import tempfile
 from .model_artifact import load_trained_model_artifact_bytes
 from .race_day_pipeline import build_and_save_local_race_day, _publish_directory_no_replace
 from .market_blend import build_market_blend_forecast_from_snapshot, save_market_blend_forecast, load_market_blend_forecast
-from .win5 import build_market_blend_win5_forecast, save_win5_forecast
+from .win5 import build_market_blend_win5_forecast, save_win5_forecast, build_win5_forecast
+from .prediction_explanation import save_day_explanations
 
 
 def _unique(pairs):
@@ -63,8 +64,8 @@ def load_prediction_profile(path, *, allow_comparison=True):
         if not isinstance(payload[key], str) or not payload[key].strip():
             raise ValueError('invalid profile text')
     weight = payload['market_weight']
-    if type(weight) not in (int,float) or not math.isfinite(weight) or not 0 < weight < 1:
-        raise ValueError('profile market weight must be between zero and one')
+    if type(weight) not in (int,float) or not math.isfinite(weight) or not 0 <= weight < 1:
+        raise ValueError('profile market weight must be at least zero and less than one')
     def checked_file(field, digest):
         data = (path.parent / payload[field]).read_bytes()
         if hashlib.sha256(data).hexdigest() != payload[digest]:
@@ -105,24 +106,39 @@ def predict_profile_day(profile_path, history, plan, market_snapshot, output, *,
         staged = temp/'day'
         build_and_save_local_race_day(model,history,plan,staged,frozen_at=frozen_at,
                                      require_complete_body_weight=require_complete_body_weight)
-        blend = build_market_blend_forecast_from_snapshot(staged,market_snapshot,market_weight=profile.market_weight)
-        if blend.observed_at < profile.activated_at or blend.observed_at > frozen_at:
-            raise ValueError('market observation outside profile prediction window')
-        independent = json.loads((staged/'race-day.json').read_text())
-        expected = sum(len(v['races']) for v in independent['venues'])
-        if len(blend.races) != expected:
-            raise ValueError('market blend must cover the full profile day')
-        blend_path = staged/'market-blend.json'
-        save_market_blend_forecast(blend,blend_path)
+        save_day_explanations(model,history,plan,staged)
+        manifest = json.loads((staged/'race-day.json').read_text())
+        blend = None
+        if profile.market_weight > 0:
+            blend = build_market_blend_forecast_from_snapshot(staged,market_snapshot,market_weight=profile.market_weight)
+            if blend.observed_at < profile.activated_at or blend.observed_at > frozen_at:
+                raise ValueError('market observation outside profile prediction window')
+            expected = sum(len(v['races']) for v in manifest['venues'])
+            if len(blend.races) != expected:
+                raise ValueError('market blend must cover the full profile day')
+            blend_path = staged/'market-blend.json'
+            save_market_blend_forecast(blend,blend_path)
         if win5_race_ids:
-            save_win5_forecast(build_market_blend_win5_forecast(blend_path,win5_race_ids),staged/'win5-market-blend.json')
+            if blend is not None:
+                win5 = build_market_blend_win5_forecast(blend_path,win5_race_ids)
+                filename = 'win5-market-blend.json'
+            else:
+                from .bundle_audit import load_audited_prediction_bundle
+                bundles = {load_audited_prediction_bundle(staged/r['prediction_bundle']).audit.race_id:staged/r['prediction_bundle']
+                           for v in manifest['venues'] for r in v['races']}
+                if len(set(win5_race_ids)) != 5 or not set(win5_race_ids)<=bundles.keys():
+                    raise ValueError('invalid independent WIN5 race ids')
+                win5 = build_win5_forecast([bundles[r] for r in win5_race_ids],frozen_at=frozen_at)
+                filename = 'win5.json'
+            save_win5_forecast(win5,staged/filename)
         if profile.comparison_path:
             predict_profile_day(profile.comparison_path,history,plan,market_snapshot,staged/'comparison',
                                 frozen_at=frozen_at,win5_race_ids=win5_race_ids,
                                 require_complete_body_weight=require_complete_body_weight, _profile=profile.comparison)
-            compared = load_market_blend_forecast(staged/'comparison/market-blend.json')
-            if (compared.cards_sha256, compared.observed_at) != (blend.cards_sha256, blend.observed_at):
-                raise ValueError('market inputs changed between primary and comparison')
+            if blend is not None and profile.comparison.market_weight > 0:
+                compared = load_market_blend_forecast(staged/'comparison/market-blend.json')
+                if (compared.cards_sha256, compared.observed_at) != (blend.cards_sha256, blend.observed_at):
+                    raise ValueError('market inputs changed between primary and comparison')
             def input_hashes(directory):
                 result = {}
                 for file in sorted((directory/'predictions').glob('*/input-provenance.json')):

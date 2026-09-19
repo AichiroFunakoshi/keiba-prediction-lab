@@ -145,6 +145,7 @@ def evaluate_local_walk_forward(
     *,
     track_condition_v2: bool = False,
     evidence_neutral_v3: bool = False,
+    ability_v5: bool = False,
     recent_form_v4: bool = False,
 ) -> WalkForwardArtifact:
     windows_content = Path(windows_path).read_bytes()
@@ -156,6 +157,7 @@ def evaluate_local_walk_forward(
         track_condition_v2=track_condition_v2,
         evidence_neutral_v3=evidence_neutral_v3,
         recent_form_v4=recent_form_v4,
+        ability_v5=ability_v5,
     )
     return WalkForwardArtifact(
         training_sha256=bundle.training_sha256,

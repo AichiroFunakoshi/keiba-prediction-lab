@@ -124,6 +124,8 @@ class ReadOnlyAppSnapshot:
     active_prediction_profile: dict[str, object] | None = None
     comparison_race_day: RaceDayAppSnapshot | None = None
     comparison_win5: Win5AppSnapshot | None = None
+    prediction_explanations: dict | None = None
+    comparison_explanations: dict | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -145,6 +147,8 @@ class ReadOnlyAppSnapshot:
             "active_prediction_profile": self.active_prediction_profile,
             "comparison_race_day": _race_day_dict(self.comparison_race_day),
             "comparison_win5": _win5_dict(self.comparison_win5),
+            "prediction_explanations": self.prediction_explanations,
+            "comparison_explanations": self.comparison_explanations,
         }
 
 
