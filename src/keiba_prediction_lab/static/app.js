@@ -344,6 +344,32 @@ async function loadState() {
     const state = await response.json();
     if (!state.is_valid) throw new Error("監査済みデータではありません");
     currentState = state;
+    const profileBox = byId("active-profile");
+    const profile = state.active_prediction_profile;
+    profileBox.hidden = !profile;
+    profileBox.replaceChildren();
+    if (profile) {
+      profileBox.append(node("strong", "", `次回の予測設定：独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`));
+      profileBox.append(node("p", "", profile.validation_summary));
+      if (profile.comparison) {
+        profileBox.append(node("p", "", `同時計算する強化版：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}。${profile.comparison.validation_summary}`));
+      }
+      if (state.comparison_race_day) {
+        const toggle = node("button", "", "強化版の予測を見る");
+        let showComparison = false;
+        toggle.addEventListener("click", () => {
+          showComparison = !showComparison;
+          currentState = {...state,
+            race_day: showComparison ? state.comparison_race_day : state.race_day,
+            win5: showComparison ? state.comparison_win5 : state.win5};
+          renderDashboard(currentState.race_day);
+          renderWin5(currentState.win5, currentState.race_day);
+          toggle.textContent = showComparison ? "主表示の予測に戻る" : "強化版の予測を見る";
+        });
+        profileBox.append(toggle);
+      }
+      profileBox.append(node("small", "", `設定：${profile.profile_id} ／ 以下は保存済み予測（当時の比率を表示）`));
+    }
     byId("context-policy").textContent = state.actual_purchase_policy;
     if (state.race_day) {
       renderDashboard(state.race_day);

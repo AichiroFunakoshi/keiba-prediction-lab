@@ -241,6 +241,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="reserve the newest N races for time-separated temperature calibration",
     )
     train_schema = train_model.add_mutually_exclusive_group()
+    train_schema.add_argument("--recent-form-v4", action="store_true", help="use the opt-in recent form model")
     train_schema.add_argument("--evidence-neutral-v3", action="store_true",
                               help="use track-aware rates without direct start-count effects")
     train_schema.add_argument(
@@ -292,6 +293,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="reject the whole race day when any runner body weight is missing",
     )
     predict_race_day.add_argument("--output", type=Path, required=True)
+
+    profile_day = subparsers.add_parser("predict-profile-day", help="predict using the active local model and odds profile")
+    profile_day.add_argument("history", type=Path)
+    profile_day.add_argument("plan", type=Path)
+    profile_day.add_argument("snapshot", type=Path)
+    profile_day.add_argument("--profile", type=Path, default=Path("local/active-prediction-profile.json"))
+    profile_day.add_argument("--frozen-at", required=True)
+    profile_day.add_argument("--output", type=Path, required=True)
+    profile_day.add_argument("--win5-race-ids", nargs=5, default=())
+    profile_day.add_argument("--require-complete-body-weight", action="store_true")
 
     audit_race_day = subparsers.add_parser(
         "audit-race-day",
@@ -404,6 +415,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=MAX_FORMAL_EVALUATION_RACES,
     )
     walk_schema = walk_forward.add_mutually_exclusive_group()
+    walk_schema.add_argument("--recent-form-v4", action="store_true", help="evaluate the opt-in recent form model")
     walk_schema.add_argument("--evidence-neutral-v3", action="store_true",
                              help="evaluate rates without direct start-count effects")
     walk_schema.add_argument(
@@ -862,6 +874,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             calibration_races=args.calibration_races,
             track_condition_v2=args.track_condition_v2,
             evidence_neutral_v3=args.evidence_neutral_v3,
+            recent_form_v4=args.recent_form_v4,
         )
         artifact = train_local_model_artifact(
             args.training, parameters=parameters
@@ -908,6 +921,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             "stake_yen": actual.trifecta_tickets[0].stake_yen,
             "shadow_stake_yen": 0,
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "predict-profile-day":
+        from .prediction_profile import predict_profile_day
+        try:
+            receipt = predict_profile_day(args.profile, args.history, args.plan, args.snapshot,
+                args.output, frozen_at=datetime.fromisoformat(args.frozen_at),
+                win5_race_ids=args.win5_race_ids,
+                require_complete_body_weight=args.require_complete_body_weight)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}, ensure_ascii=False))
+            return 1
+        print(json.dumps({"is_valid": True, **receipt}, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "predict-race-day":
@@ -1166,6 +1192,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.windows,
                 track_condition_v2=args.track_condition_v2,
                 evidence_neutral_v3=args.evidence_neutral_v3,
+                recent_form_v4=args.recent_form_v4,
             )
             evaluation_races = artifact.result.aggregate_model_score.race_count
             if evaluation_races < args.min_evaluation_races:

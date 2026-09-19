@@ -121,6 +121,9 @@ class ReadOnlyAppSnapshot:
     walk_forward: WalkForwardAppSnapshot | None
     win5: Win5AppSnapshot | None = None
     race_day: RaceDayAppSnapshot | None = None
+    active_prediction_profile: dict[str, object] | None = None
+    comparison_race_day: RaceDayAppSnapshot | None = None
+    comparison_win5: Win5AppSnapshot | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -139,6 +142,9 @@ class ReadOnlyAppSnapshot:
             "walk_forward": _walk_forward_dict(self.walk_forward),
             "win5": _win5_dict(self.win5),
             "race_day": _race_day_dict(self.race_day),
+            "active_prediction_profile": self.active_prediction_profile,
+            "comparison_race_day": _race_day_dict(self.comparison_race_day),
+            "comparison_win5": _win5_dict(self.comparison_win5),
         }
 
 

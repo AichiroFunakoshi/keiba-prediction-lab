@@ -12,7 +12,7 @@ python -m keiba_prediction_lab.cli train-model local/training.csv \
   --evidence-neutral-v3 --calibration-races 60 --output local/candidate-model.json
 ```
 
-このフラグと `--track-condition-v2` は同時指定できない。既定モデルは変更しない。モデル版は `conditional-logit-evidence-neutral-v3`、確率校正ありは `-temperature-v1` 付き、モデル成果物スキーマは1.3。読み込みは旧スキーマ1.0～1.2との互換を保つ。モデル版・15要素の特徴量・係数・学習フラグの不一致は拒否する。
+このフラグと `--track-condition-v2` は同時指定できない。既定モデルは変更しない。モデル版は `conditional-logit-evidence-neutral-v3`、確率校正ありは `-temperature-v1` 付き、v3の読込にはスキーマ1.3以上が必要。新規保存はスキーマ1.4を使い、旧スキーマ1.0～1.3との互換を保つ。モデル版・15要素の特徴量・係数・学習フラグの不一致は拒否する。
 
 ## 採否の判断
 
