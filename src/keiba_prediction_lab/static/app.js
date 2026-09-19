@@ -4,6 +4,10 @@ const byId = (id) => document.getElementById(id);
 let currentState = null;
 let selectedVenueIndex = 0;
 const percent = (value) => `${(value * 100).toFixed(1)}%`;
+const marketLabel = (version) => {
+  const match = version.match(/market-log-pool-v\d+-w(\d+)$/);
+  return match ? `モデル${100 - Number(match[1])}%・オッズ${Number(match[1])}%` : "市場混合";
+};
 const smallPercent = (value) => {
   const percentage = value * 100;
   if (percentage === 0) return "0%";
@@ -130,7 +134,7 @@ function renderPrediction(prediction, runnerDisplay = []) {
   byId("context-frozen").textContent = dateTime(prediction.frozen_at);
   const isMarketBlend = prediction.model_version.includes("market-log-pool");
   byId("context-model").textContent = isMarketBlend
-    ? "市場混合 65:35（発走前オッズ反映）"
+    ? `${marketLabel(prediction.model_version)}（発走前オッズ反映）`
     : prediction.model_version;
   byId("context-model").title = isMarketBlend ? prediction.model_version : "";
   byId("context-input").textContent = prediction.input_data_version;
@@ -212,12 +216,21 @@ function renderVenue(raceDay, venueIndex) {
     probabilityCell.append(node("b", "ledger-probability", percent(winner.win_probability)));
     probabilityCell.append(node(
       "small", "", prediction.model_version.includes("market-log-pool")
-        ? "オッズ反映 65:35" : "独立予測"
+        ? marketLabel(prediction.model_version) : "独立予測"
     ));
     row.append(probabilityCell);
     const ticket = node("span", "compact-ticket ledger-ticket");
     compactTicket(prediction.actual.selection, ticket, displayById);
-    row.append(ticket);
+    const ticketCell = node("span", "");
+    ticketCell.append(ticket);
+    const wide = prediction.actual.selection.slice(0, 2).map(
+      (id) => displayById.get(id)?.horse_number ?? id
+    );
+    const wideLabel = node("small", "", `ワイド参考：${wide.join("－")}`);
+    wideLabel.style.display = "block";
+    wideLabel.title = "三連単予想の1・2位を組み合わせた参考候補。ワイド配当に基づく採算判定はしていません。";
+    ticketCell.append(wideLabel);
+    row.append(ticketCell);
     const detail = node("span", "detail-link", "詳細を見る");
     row.append(detail);
     row.addEventListener("click", () => {
