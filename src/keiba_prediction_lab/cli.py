@@ -241,6 +241,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="reserve the newest N races for time-separated temperature calibration",
     )
     train_schema = train_model.add_mutually_exclusive_group()
+    train_schema.add_argument("--recent-form-v4", action="store_true", help="use the opt-in recent form model")
     train_schema.add_argument("--evidence-neutral-v3", action="store_true",
                               help="use track-aware rates without direct start-count effects")
     train_schema.add_argument(
@@ -404,6 +405,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=MAX_FORMAL_EVALUATION_RACES,
     )
     walk_schema = walk_forward.add_mutually_exclusive_group()
+    walk_schema.add_argument("--recent-form-v4", action="store_true", help="evaluate the opt-in recent form model")
     walk_schema.add_argument("--evidence-neutral-v3", action="store_true",
                              help="evaluate rates without direct start-count effects")
     walk_schema.add_argument(
@@ -862,6 +864,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             calibration_races=args.calibration_races,
             track_condition_v2=args.track_condition_v2,
             evidence_neutral_v3=args.evidence_neutral_v3,
+            recent_form_v4=args.recent_form_v4,
         )
         artifact = train_local_model_artifact(
             args.training, parameters=parameters
@@ -1166,6 +1169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.windows,
                 track_condition_v2=args.track_condition_v2,
                 evidence_neutral_v3=args.evidence_neutral_v3,
+                recent_form_v4=args.recent_form_v4,
             )
             evaluation_races = artifact.result.aggregate_model_score.race_count
             if evaluation_races < args.min_evaluation_races:

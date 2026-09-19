@@ -59,6 +59,14 @@ EVIDENCE_NEUTRAL_V3_FEATURE_NAMES = tuple(
 )
 
 
+RECENT_FORM_V4_FEATURE_NAMES = (
+    *EVIDENCE_NEUTRAL_V3_FEATURE_NAMES,
+    "recent_reciprocal_finish", "recent_top3_rate", "recent_form_missing",
+    "horse_jockey_top3_rate", "distance_change_km", "surface_changed",
+    "body_weight_change_pct", "body_weight_change_missing",
+)
+
+
 def _raw_features(
     row: FeatureRow,
     feature_names: Sequence[str] = CONDITIONAL_LOGIT_FEATURE_NAMES,
@@ -120,7 +128,7 @@ def _raw_features(
     )
     if tuple(feature_names) == CONDITIONAL_LOGIT_FEATURE_NAMES:
         values = legacy_values
-    elif tuple(feature_names) in (TRACK_CONDITION_V2_FEATURE_NAMES, EVIDENCE_NEUTRAL_V3_FEATURE_NAMES):
+    elif tuple(feature_names) in (TRACK_CONDITION_V2_FEATURE_NAMES, EVIDENCE_NEUTRAL_V3_FEATURE_NAMES, RECENT_FORM_V4_FEATURE_NAMES):
         values = (
             *legacy_values[:11],
             row.horse_surface_track_condition_win_rate,
@@ -128,9 +136,22 @@ def _raw_features(
             row.horse_surface_track_condition_top3_rate,
             log1p(row.horse_surface_track_condition_starts),
         )
-        if tuple(feature_names) == EVIDENCE_NEUTRAL_V3_FEATURE_NAMES:
+        if tuple(feature_names) in (EVIDENCE_NEUTRAL_V3_FEATURE_NAMES, RECENT_FORM_V4_FEATURE_NAMES):
             by_name = dict(zip(TRACK_CONDITION_V2_FEATURE_NAMES, values))
             values = tuple(by_name[name] for name in EVIDENCE_NEUTRAL_V3_FEATURE_NAMES)
+        if tuple(feature_names) == RECENT_FORM_V4_FEATURE_NAMES:
+            if any(not 0 <= rate <= 1 for rate in (
+                row.recent_reciprocal_finish, row.recent_top3_rate, row.horse_jockey_top3_rate
+            )):
+                raise ValueError("recent form rates must be between 0 and 1")
+            if type(row.recent_form_missing) is not bool or type(row.surface_changed) is not bool:
+                raise ValueError("recent form flags must be boolean")
+            values += (
+                row.recent_reciprocal_finish, row.recent_top3_rate, float(row.recent_form_missing),
+                row.horse_jockey_top3_rate, row.distance_change_km, float(row.surface_changed),
+                row.body_weight_change_pct if row.body_weight_change_pct is not None else 0.0,
+                float(row.body_weight_change_pct is None),
+            )
     else:
         raise ValueError("unsupported conditional-logit feature schema")
     if any(not isfinite(value) for value in values):
@@ -185,6 +206,8 @@ class ConditionalLogitModel:
 
     @property
     def feature_names(self) -> tuple[str, ...]:
+        if self.model_version == "conditional-logit-recent-form-v4":
+            return RECENT_FORM_V4_FEATURE_NAMES
         if self.model_version == "conditional-logit-track-condition-v2":
             return TRACK_CONDITION_V2_FEATURE_NAMES
         if self.model_version == "conditional-logit-evidence-neutral-v3":
@@ -276,6 +299,7 @@ def fit_conditional_logit(
         CONDITIONAL_LOGIT_FEATURE_NAMES: "conditional-logit-v1",
         TRACK_CONDITION_V2_FEATURE_NAMES: "conditional-logit-track-condition-v2",
         EVIDENCE_NEUTRAL_V3_FEATURE_NAMES: "conditional-logit-evidence-neutral-v3",
+        RECENT_FORM_V4_FEATURE_NAMES: "conditional-logit-recent-form-v4",
     }.get(selected_features)
     if expected_version is None or model_version != expected_version:
         raise ValueError("model_version does not match the feature schema")

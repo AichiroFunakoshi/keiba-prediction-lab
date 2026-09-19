@@ -19,14 +19,15 @@ from .model import (
     CONDITIONAL_LOGIT_FEATURE_NAMES,
     TRACK_CONDITION_V2_FEATURE_NAMES,
     EVIDENCE_NEUTRAL_V3_FEATURE_NAMES,
+    RECENT_FORM_V4_FEATURE_NAMES,
     ConditionalLogitModel,
     TrainingRow,
     fit_conditional_logit,
 )
 
 
-MODEL_ARTIFACT_SCHEMA_VERSION = "1.3"
-SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3"})
+MODEL_ARTIFACT_SCHEMA_VERSION = "1.4"
+SUPPORTED_MODEL_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3", "1.4"})
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ class ModelTrainingParameters:
     calibration_races: int = 0
     track_condition_v2: bool = False
     evidence_neutral_v3: bool = False
+    recent_form_v4: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -66,7 +68,9 @@ class ModelTrainingParameters:
             raise ValueError("track_condition_v2 must be a boolean")
         if type(self.evidence_neutral_v3) is not bool:
             raise ValueError("evidence_neutral_v3 must be a boolean")
-        if self.track_condition_v2 and self.evidence_neutral_v3:
+        if type(self.recent_form_v4) is not bool:
+            raise ValueError("recent_form_v4 must be a boolean")
+        if sum((self.track_condition_v2, self.evidence_neutral_v3, self.recent_form_v4)) > 1:
             raise ValueError("choose one feature schema")
 
 
@@ -124,13 +128,19 @@ class TrainedModelArtifact:
             "conditional-logit-track-condition-v2",
             "conditional-logit-track-condition-v2-temperature-v1",
             "conditional-logit-evidence-neutral-v3",
+            "conditional-logit-recent-form-v4",
             "conditional-logit-evidence-neutral-v3-temperature-v1",
+            "conditional-logit-recent-form-v4-temperature-v1",
         ):
             raise ValueError("unsupported model_version")
         if self.parameters.track_condition_v2 != self.model.model_version.startswith(
             "conditional-logit-track-condition-v2"
         ):
             raise ValueError("track_condition_v2 does not match model_version")
+        if self.parameters.recent_form_v4 != self.model.model_version.startswith(
+            "conditional-logit-recent-form-v4"
+        ):
+            raise ValueError("recent_form_v4 does not match model_version")
         if self.parameters.evidence_neutral_v3 != self.model.model_version.startswith(
             "conditional-logit-evidence-neutral-v3"
         ):
@@ -181,13 +191,15 @@ def train_local_model_artifact(
         learning_rate=selected.learning_rate,
         l2_strength=selected.l2_strength,
         feature_names=(
-            EVIDENCE_NEUTRAL_V3_FEATURE_NAMES
+            RECENT_FORM_V4_FEATURE_NAMES
+            if selected.recent_form_v4 else EVIDENCE_NEUTRAL_V3_FEATURE_NAMES
             if selected.evidence_neutral_v3 else TRACK_CONDITION_V2_FEATURE_NAMES
             if selected.track_condition_v2
             else CONDITIONAL_LOGIT_FEATURE_NAMES
         ),
         model_version=(
-            "conditional-logit-evidence-neutral-v3"
+            "conditional-logit-recent-form-v4"
+            if selected.recent_form_v4 else "conditional-logit-evidence-neutral-v3"
             if selected.evidence_neutral_v3 else "conditional-logit-track-condition-v2"
             if selected.track_condition_v2
             else "conditional-logit-v1"
@@ -240,6 +252,7 @@ def _payload(artifact: TrainedModelArtifact) -> dict[str, object]:
             "calibration_races": artifact.parameters.calibration_races,
             "track_condition_v2": artifact.parameters.track_condition_v2,
             "evidence_neutral_v3": artifact.parameters.evidence_neutral_v3,
+            "recent_form_v4": artifact.parameters.recent_form_v4,
         },
         "model": model_payload,
     }
@@ -306,6 +319,7 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
     expected_features = {
         "conditional-logit-v1": list(CONDITIONAL_LOGIT_FEATURE_NAMES),
         "conditional-logit-evidence-neutral-v3": list(EVIDENCE_NEUTRAL_V3_FEATURE_NAMES),
+        "conditional-logit-recent-form-v4": list(RECENT_FORM_V4_FEATURE_NAMES),
         "conditional-logit-track-condition-v2": list(
             TRACK_CONDITION_V2_FEATURE_NAMES
         ),
@@ -314,14 +328,16 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
         raise ValueError("model artifact feature schema is incompatible")
     if (
         base_model_version == "conditional-logit-track-condition-v2"
-        and schema_version not in ("1.2", "1.3")
+        and schema_version not in ("1.2", "1.3", "1.4")
     ):
         raise ValueError("track-condition-v2 model requires artifact schema 1.2 or newer")
     if (
         base_model_version == "conditional-logit-evidence-neutral-v3"
-        and schema_version != "1.3"
+        and schema_version not in ("1.3", "1.4")
     ):
         raise ValueError("evidence-neutral-v3 model requires artifact schema 1.3")
+    if base_model_version == "conditional-logit-recent-form-v4" and schema_version != "1.4":
+        raise ValueError("recent-form-v4 model requires artifact schema 1.4")
     base_model = ConditionalLogitModel(
         coefficients=_float_tuple(model_payload, "coefficients"),
         means=_float_tuple(model_payload, "means"),
@@ -335,14 +351,16 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
         "conditional-logit-v1",
         "conditional-logit-track-condition-v2",
         "conditional-logit-evidence-neutral-v3",
+        "conditional-logit-recent-form-v4",
     ):
         model: ConditionalLogitModel | TemperatureCalibratedModel = base_model
     elif model_version in (
         "conditional-logit-v1-temperature-v1",
         "conditional-logit-track-condition-v2-temperature-v1",
         "conditional-logit-evidence-neutral-v3-temperature-v1",
+        "conditional-logit-recent-form-v4-temperature-v1",
     ):
-        if schema_version not in ("1.1", "1.2", "1.3"):
+        if schema_version not in ("1.1", "1.2", "1.3", "1.4"):
             raise ValueError("calibrated model requires artifact schema 1.1 or newer")
         temperature = model_payload.get("temperature")
         calibrated_through = model_payload.get("calibrated_through")
@@ -372,6 +390,7 @@ def load_trained_model_artifact_bytes(content: bytes) -> TrainedModelArtifact:
                 _required(parameters, "calibration_races", int)
                 if "calibration_races" in parameters else 0
             ),
+            recent_form_v4=(_required(parameters, "recent_form_v4", bool) if "recent_form_v4" in parameters else False),
             evidence_neutral_v3=(
                 _required(parameters, "evidence_neutral_v3", bool)
                 if "evidence_neutral_v3" in parameters else False
