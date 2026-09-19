@@ -294,6 +294,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     predict_race_day.add_argument("--output", type=Path, required=True)
 
+    profile_day = subparsers.add_parser("predict-profile-day", help="predict using the active local model and odds profile")
+    profile_day.add_argument("history", type=Path)
+    profile_day.add_argument("plan", type=Path)
+    profile_day.add_argument("snapshot", type=Path)
+    profile_day.add_argument("--profile", type=Path, default=Path("local/active-prediction-profile.json"))
+    profile_day.add_argument("--frozen-at", required=True)
+    profile_day.add_argument("--output", type=Path, required=True)
+    profile_day.add_argument("--win5-race-ids", nargs=5, default=())
+    profile_day.add_argument("--require-complete-body-weight", action="store_true")
+
     audit_race_day = subparsers.add_parser(
         "audit-race-day",
         help="re-audit a saved local race day and all prediction bundles",
@@ -911,6 +921,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             "stake_yen": actual.trifecta_tickets[0].stake_yen,
             "shadow_stake_yen": 0,
         }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "predict-profile-day":
+        from .prediction_profile import predict_profile_day
+        try:
+            receipt = predict_profile_day(args.profile, args.history, args.plan, args.snapshot,
+                args.output, frozen_at=datetime.fromisoformat(args.frozen_at),
+                win5_race_ids=args.win5_race_ids,
+                require_complete_body_weight=args.require_complete_body_weight)
+        except (OSError, ValueError, UnicodeError) as error:
+            print(json.dumps({"is_valid": False, "error": str(error)}, ensure_ascii=False))
+            return 1
+        print(json.dumps({"is_valid": True, **receipt}, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "predict-race-day":
