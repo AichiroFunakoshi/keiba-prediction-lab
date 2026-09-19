@@ -262,6 +262,7 @@ def parse_card(content: bytes, cname: str) -> dict:
                 "result_url": href if href.startswith("http") else BASE + href,
             })
         odds_text = _clean(_first(horse_cell, './/div[contains(concat(" ",normalize-space(@class)," ")," odds ")]//strong'))
+        popularity_match = re.search(r"(\d+)\s*(?:番)?人気", _clean(_first(horse_cell, './/div[contains(concat(" ",normalize-space(@class)," ")," odds ")]')))
         trainer_cell = _first(
             horse_cell,
             './/p[contains(concat(" ",normalize-space(@class)," ")," trainer ")]',
@@ -278,6 +279,7 @@ def parse_card(content: bytes, cname: str) -> dict:
             "trainer": trainer,
             "weight": float(weight_match.group()),
             "body_weight_kg": int(body_match.group()) if body_match else None,
+            "popularity": int(popularity_match.group(1)) if popularity_match else None,
             "odds": float(odds_text) if re.fullmatch(r"\d+(?:\.\d+)?", odds_text) else None,
             "pasts": pasts,
         })

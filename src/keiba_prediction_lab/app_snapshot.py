@@ -92,6 +92,10 @@ class RunnerDisplayAppSnapshot:
     horse_number: int
     horse_name: str
     frame_number: int | None = None
+    win_odds: float | None = None
+    popularity: int | None = None
+    odds_observed_at: str | None = None
+    popularity_source: str | None = None
 
 
 @dataclass(frozen=True)
@@ -509,6 +513,10 @@ def _race_day_dict(value: RaceDayAppSnapshot | None) -> object:
                                 "horse_number": row.horse_number,
                                 "horse_name": row.horse_name,
                                 "frame_number": row.frame_number,
+                                "win_odds": row.win_odds,
+                                "popularity": row.popularity,
+                                "odds_observed_at": row.odds_observed_at,
+                                "popularity_source": row.popularity_source,
                             }
                             for row in race.runner_display
                         ],
