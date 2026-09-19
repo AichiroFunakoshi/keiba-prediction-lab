@@ -30,6 +30,16 @@ function runnerDisplayMap(runnerDisplay = []) {
   return new Map(runnerDisplay.map((item) => [item.horse_id, item]));
 }
 
+function oddsText(display) {
+  if (!display || display.win_odds == null) return "単勝 未取得／人気 未取得";
+  const popularity = display.popularity == null ? "人気未取得" : `${display.popularity}番人気${display.popularity_source === "odds_order" ? "相当" : ""}`;
+  return `単勝${display.win_odds.toFixed(1)}倍・${popularity}`;
+}
+function oddsBadge(display) {
+  const badge = node("small", "odds-badge", oddsText(display));
+  badge.title = `${dateTime(display?.odds_observed_at)}取得${display?.popularity_source === "odds_order" ? "／単勝オッズ順の参考値・同オッズは同順位" : "／JRA掲載人気順"}`;
+  return badge;
+}
 function renderTicket(prediction, displayById) {
   const selection = byId("official-selection");
   selection.replaceChildren();
@@ -41,7 +51,9 @@ function renderTicket(prediction, displayById) {
       display ? String(display.horse_number) : horseId
     );
     if (display) number.title = `${display.horse_name}（馬ID: ${horseId}）`;
-    selection.append(number);
+    const horse = node("span", "number-with-odds");
+    horse.append(number, oddsBadge(display));
+    selection.append(horse);
   });
 }
 
@@ -69,6 +81,8 @@ function renderRanking(prediction, displayById) {
     const horseName = node("td", "runner-name", display?.horse_name || runner.horse_id);
     if (display) horseName.title = `馬ID: ${runner.horse_id}`;
     row.append(horseName);
+    row.append(node("td", "", display?.win_odds != null ? `${display.win_odds.toFixed(1)}倍` : "未取得"));
+    row.append(node("td", "", display?.popularity != null ? `${display.popularity}番人気${display.popularity_source === "odds_order" ? "相当" : ""}` : "未取得"));
     row.append(node("td", "probability", percent(runner.win_probability)));
     row.append(node("td", "probability", percent(runner.top3_probability)));
     body.append(row);
@@ -150,6 +164,7 @@ function renderPrediction(prediction, runnerDisplay = []) {
   byId("winner-label").textContent = winnerDisplay ? "予測1位の馬" : "予測1位の馬ID";
   byId("winner-id").textContent = winnerDisplay?.horse_name || winner.horse_id;
   byId("winner-id").title = winnerDisplay ? `馬ID: ${winner.horse_id}` : "";
+  byId("winner-odds").textContent = oddsText(winnerDisplay);
   byId("winner-probability").textContent = percent(winner.win_probability);
   renderRanking(prediction, displayById);
   renderShadows(prediction);
@@ -179,6 +194,7 @@ function renderExplanations(prediction, displayById) {
     if (!entry) return;
     const display = displayById.get(runner.horse_id);
     const card = node("article", "explanation-card");
+    card.append(oddsBadge(display));
     card.append(node("strong", "", `${runner.predicted_rank}位　${display ? `${display.horse_number} ${display.horse_name}` : runner.horse_id}`));
     const positive = entry.factors.filter((f) => f.contribution > 0.000001).slice(0, 3);
     const negative = entry.factors.filter((f) => f.contribution < -0.000001).slice(0, 2);
@@ -202,7 +218,9 @@ function compactTicket(selection, target, displayById = new Map()) {
     if (display) {
       number.title = `${display.horse_name}（馬ID: ${horseId}）`;
     }
-    target.append(number);
+    const horse = node("span", "number-with-odds");
+    horse.append(number, oddsBadge(display));
+    target.append(horse);
   });
 }
 
@@ -246,6 +264,7 @@ function renderVenue(raceDay, venueIndex) {
     const winnerName = node("strong", "", winnerDisplay?.horse_name || winner.horse_id);
     if (winnerDisplay) winnerName.title = `馬ID: ${winner.horse_id}`;
     winnerCell.append(winnerName);
+    winnerCell.append(oddsBadge(winnerDisplay));
     row.append(winnerCell);
     const probabilityCell = node("span", "ledger-probability-wrap");
     probabilityCell.append(node("b", "ledger-probability", percent(winner.win_probability)));
@@ -361,6 +380,7 @@ function renderWin5(win5, raceDay = null) {
     if (display) horseName.title = `馬ID: ${leg.selected_horse_id}`;
     selection.append(horseName);
     item.append(selection);
+    item.append(oddsBadge(display));
     item.append(node("small", "", leg.race_id));
     item.append(node("b", "", percent(leg.selected_win_probability)));
     legs.append(item);
@@ -379,6 +399,8 @@ async function loadState() {
     const state = await response.json();
     if (!state.is_valid) throw new Error("監査済みデータではありません");
     currentState = state;
+    const observed = (state.race_day?.venues || []).flatMap(v => v.races.flatMap(r => (r.runner_display || []).map(h => h.odds_observed_at))).filter(Boolean).sort();
+    byId("market-status").textContent = observed.length ? `表示用オッズ：${dateTime(observed[observed.length-1])}取得。人気はJRA掲載値、「相当」は単勝順の参考値。予測計算とは別の情報です（自動更新なし）。` : "表示用オッズは未取得です。";
     const profileBox = byId("active-profile");
     const profile = state.active_prediction_profile;
     profileBox.hidden = !profile;

@@ -20,6 +20,7 @@
   <div id="loading" class="state-message" role="status">監査済みデータを読み込んでいます</div>
   <div id="error" class="state-message error" role="alert" hidden></div>
 
+  <p id="market-status" class="market-status"></p>
   <section id="active-profile" class="active-profile" hidden aria-label="次回の予測設定"></section>
 
   <main id="dashboard" class="dashboard" hidden>
@@ -88,13 +89,13 @@
               <strong id="winner-id">—</strong>
               <hr>
               <span>1着確率</span>
-              <b id="winner-probability">—</b>
+              <small id="winner-odds"></small><b id="winner-probability">—</b>
               <p class="neutral-note">最上位候補であり、的中を保証する表示ではありません。</p>
             </article>
             <div class="ranking-wrap">
               <p id="ranking-summary" class="ranking-summary">上位候補</p>
               <table>
-                <thead><tr><th>順位</th><th>馬番</th><th>馬名</th><th>1着確率</th><th>3着内確率</th></tr></thead>
+                <thead><tr><th>順位</th><th>馬番</th><th>馬名</th><th>単勝オッズ</th><th>人気</th><th>1着確率</th><th>3着内確率</th></tr></thead>
                 <tbody id="ranking-body"></tbody>
               </table>
             </div>

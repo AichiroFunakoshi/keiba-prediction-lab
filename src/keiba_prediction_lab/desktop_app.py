@@ -167,6 +167,14 @@ def verified_runner_display_by_race(
                 )
                 result[actual.race_id] = display
                 break
+    from .display_odds import latest_display_odds
+    market = latest_display_odds(root)
+    for rid, display in result.items():
+        data = market.get(rid, {})
+        if set(data) != {h.horse_id for h in display} or any(data[h.horse_id]['number'] != h.horse_number for h in display):
+            continue
+        result[rid] = tuple(replace(h, win_odds=data[h.horse_id]['odds'], popularity=data[h.horse_id]['popularity'],
+                                   odds_observed_at=data[h.horse_id]['observed_at'], popularity_source=data[h.horse_id]['popularity_source']) for h in display)
     return result
 
 
