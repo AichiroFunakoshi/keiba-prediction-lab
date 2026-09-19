@@ -92,6 +92,8 @@ def latest_audited_race_day_manifest(
         return None
     candidates: list[tuple[object, object, str, Path]] = []
     for manifest in root.rglob("race-day.json"):
+        if manifest.parent.name == "comparison" and (manifest.parent.parent / "prediction-profile-receipt.json").is_file():
+            continue
         if manifest.is_symlink() or not manifest.is_file():
             continue
         try:
@@ -283,6 +285,7 @@ def load_audited_race_day_snapshot(
     win5_forecast: str | Path | None = None,
     runner_display_search_root: str | Path | None = None,
     market_blend_forecast: str | Path | None = None,
+    load_comparison: bool = True,
 ) -> ReadOnlyAppSnapshot:
     """Re-audit a complete race day before exposing it to the desktop UI."""
     selected = Path(manifest)
@@ -301,6 +304,22 @@ def load_audited_race_day_snapshot(
         verified_runner_display_by_race(selected, runner_display_search_root),
     )
     snapshot = _with_market_blend(snapshot, market_blend_forecast, selected)
+    comparison_root = selected.parent / "comparison"
+    if load_comparison and (comparison_root / "race-day.json").is_file():
+        comparison = load_audited_race_day_snapshot(comparison_root / "race-day.json",
+            runner_display_search_root=runner_display_search_root,
+            market_blend_forecast=comparison_root / "market-blend.json",
+            win5_forecast=(comparison_root / "win5-market-blend.json"
+                if (comparison_root / "win5-market-blend.json").is_file() else None),
+            load_comparison=False)
+        def identities(day):
+            return {(r.prediction.race_id, r.prediction.scheduled_at, r.prediction.frozen_at,
+                     frozenset(h.horse_id for h in r.prediction.runners))
+                    for venue in day.venues for r in venue.races}
+        if (comparison.race_day.race_date != snapshot.race_day.race_date
+                or identities(comparison.race_day) != identities(snapshot.race_day)):
+            raise ValueError("comparison race date mismatch")
+        snapshot = replace(snapshot, comparison_race_day=comparison.race_day, comparison_win5=comparison.win5)
     # Detect changes that occurred while the display snapshot was assembled.
     audit_local_race_day(selected.parent)
     return snapshot
@@ -412,6 +431,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.race_day_manifest,
                     walk_forward_report=args.walk_forward_report,
                     win5_forecast=args.win5_forecast,
+                    market_blend_forecast=(args.race_day_manifest.parent / "market-blend.json"
+                        if (args.race_day_manifest.parent / "market-blend.json").is_file() else None),
                 )
             else:
                 snapshot = build_read_only_app_snapshot(
@@ -439,6 +460,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             else:
                 snapshot = load_or_create_demo_snapshot(default_demo_directory())
+        if args.demo_directory is None:
+            from .prediction_profile import load_prediction_profile
+            profile_root = repository_local_directory()
+            profile_path = profile_root / "active-prediction-profile.json" if profile_root else None
+            if profile_path is not None and profile_path.is_file():
+                snapshot = replace(snapshot, active_prediction_profile=load_prediction_profile(profile_path).to_dict())
         run_desktop_window(snapshot)
     except (
         OSError,

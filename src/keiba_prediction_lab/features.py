@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from math import exp, log
 
 
 class Surface(str, Enum):
@@ -150,6 +151,13 @@ class FeatureRow:
     horse_surface_track_condition_starts: int = 0
     horse_surface_track_condition_win_rate: float = 0.0
     horse_surface_track_condition_top3_rate: float = 0.0
+    recent_reciprocal_finish: float = 0.0
+    recent_top3_rate: float = 0.0
+    recent_form_missing: bool = True
+    horse_jockey_top3_rate: float = 0.0
+    distance_change_km: float = 0.0
+    surface_changed: bool = False
+    body_weight_change_pct: float | None = None
 
 
 @dataclass
@@ -231,6 +239,8 @@ def generate_features(
     jockey_rates: dict[str, _Rate] = defaultdict(_Rate)
     trainer_rates: dict[str, _Rate] = defaultdict(_Rate)
     latest_run: dict[str, datetime] = {}
+    horse_history: dict[str, list[RacePerformance]] = defaultdict(list)
+    horse_jockey_rates: dict[tuple[str, str], _Rate] = defaultdict(_Rate)
 
     for item in sorted(history, key=lambda row: (row.scheduled_at, row.race_id, row.horse_id)):
         key = (item.race_id, item.horse_id)
@@ -247,6 +257,8 @@ def generate_features(
         jockey_rates[item.jockey_id].add(*values)
         trainer_rates[item.trainer_id].add(*values)
         latest_run[item.horse_id] = item.scheduled_at
+        horse_history[item.horse_id].append(item)
+        horse_jockey_rates[(item.horse_id, item.jockey_id)].add(*values)
 
     win_prior = global_rate.wins / global_rate.starts if global_rate.starts else 0.5
     top3_prior = global_rate.top3 / global_rate.starts if global_rate.starts else 0.5
@@ -268,6 +280,23 @@ def generate_features(
         jockey = jockey_rates[runner.jockey_id]
         trainer = trainer_rates[runner.trainer_id]
         previous = latest_run.get(runner.horse_id)
+        recent = horse_history[runner.horse_id][-5:]
+        # Calendar decay and the last-five limit are fixed before evaluation.
+        weights = [exp(-log(2) * (observed_at - h.scheduled_at).total_seconds()
+                       / (90 * 86400)) for h in recent]
+        weight_sum = sum(weights)
+        recent_score = (sum(w / h.finish_position for w, h in zip(weights, recent))
+                        / weight_sum if weight_sum else 0.0)
+        recent_top3 = (sum(w * top3_credit[(h.race_id, h.horse_id)]
+                          for w, h in zip(weights, recent)) / weight_sum
+                       if weight_sum else 0.0)
+        last = recent[-1] if recent else None
+        pair = horse_jockey_rates[(runner.horse_id, runner.jockey_id)]
+        body_change = (
+            100 * (runner.body_weight_kg / last.body_weight_kg - 1)
+            if last and last.body_weight_kg is not None
+            and runner.body_weight_kg is not None else None
+        )
         rows.append(FeatureRow(
             race_id=runner.race_id,
             horse_id=runner.horse_id,
@@ -293,6 +322,13 @@ def generate_features(
             trainer_starts=trainer.starts,
             trainer_win_rate=win_rate(trainer),
             venue=runner.venue,
+            recent_reciprocal_finish=recent_score,
+            recent_top3_rate=recent_top3,
+            recent_form_missing=not bool(recent),
+            horse_jockey_top3_rate=_smoothed(pair.top3, pair.starts, top3_prior, prior_strength),
+            distance_change_km=(runner.distance_m - last.distance_m) / 1000 if last else 0.0,
+            surface_changed=last.surface != runner.surface if last else False,
+            body_weight_change_pct=body_change,
             horse_surface_track_condition_starts=surface_condition.starts,
             horse_surface_track_condition_win_rate=win_rate(surface_condition),
             horse_surface_track_condition_top3_rate=_smoothed(
