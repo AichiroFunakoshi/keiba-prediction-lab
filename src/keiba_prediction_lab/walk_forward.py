@@ -21,6 +21,7 @@ from .model import (
     TRACK_CONDITION_V2_FEATURE_NAMES,
     EVIDENCE_NEUTRAL_V3_FEATURE_NAMES,
     RECENT_FORM_V4_FEATURE_NAMES,
+    ABILITY_V5_FEATURE_NAMES,
     TrainingRow,
     fit_conditional_logit,
 )
@@ -92,12 +93,13 @@ def run_walk_forward(
     *,
     track_condition_v2: bool = False,
     evidence_neutral_v3: bool = False,
+    ability_v5: bool = False,
     recent_form_v4: bool = False,
 ) -> WalkForwardResult:
     """Refit, recalibrate, and evaluate once for every chronological window."""
-    if any(type(flag) is not bool for flag in (track_condition_v2, evidence_neutral_v3, recent_form_v4)):
+    if any(type(flag) is not bool for flag in (track_condition_v2, evidence_neutral_v3, recent_form_v4, ability_v5)):
         raise ValueError("feature flags must be boolean")
-    if sum((track_condition_v2, evidence_neutral_v3, recent_form_v4)) > 1:
+    if sum((track_condition_v2, evidence_neutral_v3, recent_form_v4, ability_v5)) > 1:
         raise ValueError("choose one feature schema")
     if not rows:
         raise ValueError("at least one labeled row is required")
@@ -135,13 +137,13 @@ def run_walk_forward(
         base_model = fit_conditional_logit(
             _flatten(training),
             feature_names=(
-                RECENT_FORM_V4_FEATURE_NAMES if recent_form_v4 else EVIDENCE_NEUTRAL_V3_FEATURE_NAMES
+                ABILITY_V5_FEATURE_NAMES if ability_v5 else RECENT_FORM_V4_FEATURE_NAMES if recent_form_v4 else EVIDENCE_NEUTRAL_V3_FEATURE_NAMES
                 if evidence_neutral_v3 else TRACK_CONDITION_V2_FEATURE_NAMES
                 if track_condition_v2
                 else CONDITIONAL_LOGIT_FEATURE_NAMES
             ),
             model_version=(
-                "conditional-logit-recent-form-v4" if recent_form_v4 else "conditional-logit-evidence-neutral-v3"
+                "conditional-logit-ability-v5" if ability_v5 else "conditional-logit-recent-form-v4" if recent_form_v4 else "conditional-logit-evidence-neutral-v3"
                 if evidence_neutral_v3 else "conditional-logit-track-condition-v2"
                 if track_condition_v2
                 else "conditional-logit-v1"

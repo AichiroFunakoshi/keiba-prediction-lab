@@ -135,7 +135,7 @@ function renderPrediction(prediction, runnerDisplay = []) {
   const isMarketBlend = prediction.model_version.includes("market-log-pool");
   byId("context-model").textContent = isMarketBlend
     ? `${marketLabel(prediction.model_version)}（発走前オッズ反映）`
-    : prediction.model_version;
+    : prediction.model_version.includes("ability-v5") ? "独自能力予測（オッズ不使用）" : prediction.model_version;
   byId("context-model").title = isMarketBlend ? prediction.model_version : "";
   byId("context-input").textContent = prediction.input_data_version;
   const displayById = runnerDisplayMap(runnerDisplay);
@@ -153,6 +153,41 @@ function renderPrediction(prediction, runnerDisplay = []) {
   byId("winner-probability").textContent = percent(winner.win_probability);
   renderRanking(prediction, displayById);
   renderShadows(prediction);
+  renderExplanations(prediction, displayById);
+}
+
+
+function factorLabel(factor) {
+  if (factor.feature.endsWith("missing")) {
+    return `${factor.label.replace("欠測", "情報")}（${factor.value ? "未取得" : "取得済み"}）`;
+  }
+  if (factor.feature === "surface_changed") return `前走の路面（${factor.value ? "今回と異なる" : "今回と同じ・不明時は代替値"}）`;
+  if (factor.feature === "distance_change_km") return `前走との距離差 ${Math.round(factor.value * 1000)}m`;
+  if (factor.feature === "carried_weight_change") return `前走との斤量差 ${factor.value.toFixed(1)}kg`;
+  const countLabels = {log_horse_starts: "取得済みの出走数", log_jockey_starts: "取得済み騎乗数", log_trainer_starts: "取得済み管理馬出走数", log_horse_surface_track_condition_starts: "同路面・馬場の履歴数"};
+  return countLabels[factor.feature] || factor.label;
+}
+
+function renderExplanations(prediction, displayById) {
+  const data = currentState?.prediction_explanations?.[prediction.race_id];
+  byId("explanations").hidden = !data;
+  const body = byId("explanation-rows");
+  body.replaceChildren();
+  if (!data) return;
+  prediction.runners.forEach((runner) => {
+    const entry = data[runner.horse_id];
+    if (!entry) return;
+    const display = displayById.get(runner.horse_id);
+    const card = node("article", "explanation-card");
+    card.append(node("strong", "", `${runner.predicted_rank}位　${display ? `${display.horse_number} ${display.horse_name}` : runner.horse_id}`));
+    const positive = entry.factors.filter((f) => f.contribution > 0.000001).slice(0, 3);
+    const negative = entry.factors.filter((f) => f.contribution < -0.000001).slice(0, 2);
+    card.append(node("p", "", `評価を押し上げ：${positive.map(factorLabel).join("、") || "目立つ項目なし"}`));
+    card.append(node("p", "", `評価を押し下げ：${negative.map(factorLabel).join("、") || "目立つ項目なし"}`));
+    const missing = [entry.recent_form_missing ? "保存済み近走なし" : `保存済み履歴${entry.history_starts}走`, entry.body_weight_missing ? "当日馬体重未取得" : "当日馬体重取得済み"];
+    card.append(node("small", "", missing.join(" ／ ")));
+    body.append(card);
+  });
 }
 
 function compactTicket(selection, target, displayById = new Map()) {
@@ -349,26 +384,27 @@ async function loadState() {
     profileBox.hidden = !profile;
     profileBox.replaceChildren();
     if (profile) {
-      profileBox.append(node("strong", "", `次回の予測設定：独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`));
+      profileBox.append(node("strong", "", profile.market_weight === 0 ? "主表示：独自予測100％（オッズは順位・確率に使いません）" : `予測設定：独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`));
       profileBox.append(node("p", "", profile.validation_summary));
       if (profile.comparison) {
-        profileBox.append(node("p", "", `同時計算する強化版：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}。${profile.comparison.validation_summary}`));
+        profileBox.append(node("p", "", `別表示の市場比較版：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}。${profile.comparison.validation_summary}`));
       }
       if (state.comparison_race_day) {
-        const toggle = node("button", "", "強化版の予測を見る");
+        const toggle = node("button", "", "市場比較版を見る");
         let showComparison = false;
         toggle.addEventListener("click", () => {
           showComparison = !showComparison;
           currentState = {...state,
             race_day: showComparison ? state.comparison_race_day : state.race_day,
-            win5: showComparison ? state.comparison_win5 : state.win5};
+            win5: showComparison ? state.comparison_win5 : state.win5,
+            prediction_explanations: showComparison ? state.comparison_explanations : state.prediction_explanations};
           renderDashboard(currentState.race_day);
           renderWin5(currentState.win5, currentState.race_day);
-          toggle.textContent = showComparison ? "主表示の予測に戻る" : "強化版の予測を見る";
+          toggle.textContent = showComparison ? "主表示の予測に戻る" : "市場比較版を見る";
         });
         profileBox.append(toggle);
       }
-      profileBox.append(node("small", "", `設定：${profile.profile_id} ／ 以下は保存済み予測（当時の比率を表示）`));
+      profileBox.append(node("small", "", `設定：${profile.profile_id} ／ 各レースには予測時点の設定を表示`));
     }
     byId("context-policy").textContent = state.actual_purchase_policy;
     if (state.race_day) {

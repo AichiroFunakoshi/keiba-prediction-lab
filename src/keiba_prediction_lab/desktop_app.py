@@ -303,23 +303,27 @@ def load_audited_race_day_snapshot(
         snapshot,
         verified_runner_display_by_race(selected, runner_display_search_root),
     )
+    from .prediction_explanation import load_day_explanations
+    explanations = load_day_explanations(selected.parent,snapshot.race_day)
     snapshot = _with_market_blend(snapshot, market_blend_forecast, selected)
+    snapshot = replace(snapshot, prediction_explanations=explanations)
     comparison_root = selected.parent / "comparison"
     if load_comparison and (comparison_root / "race-day.json").is_file():
         comparison = load_audited_race_day_snapshot(comparison_root / "race-day.json",
             runner_display_search_root=runner_display_search_root,
-            market_blend_forecast=comparison_root / "market-blend.json",
+            market_blend_forecast=(comparison_root / "market-blend.json" if (comparison_root / "market-blend.json").is_file() else None),
             win5_forecast=(comparison_root / "win5-market-blend.json"
-                if (comparison_root / "win5-market-blend.json").is_file() else None),
+                if (comparison_root / "win5-market-blend.json").is_file() else comparison_root / "win5.json" if (comparison_root / "win5.json").is_file() else None),
             load_comparison=False)
         def identities(day):
-            return {(r.prediction.race_id, r.prediction.scheduled_at, r.prediction.frozen_at,
+            return {(r.prediction.race_id, r.prediction.scheduled_at,
                      frozenset(h.horse_id for h in r.prediction.runners))
                     for venue in day.venues for r in venue.races}
-        if (comparison.race_day.race_date != snapshot.race_day.race_date
+        if (audit_local_race_day(comparison_root).frozen_at != audit_local_race_day(selected.parent).frozen_at
+                or comparison.race_day.race_date != snapshot.race_day.race_date
                 or identities(comparison.race_day) != identities(snapshot.race_day)):
             raise ValueError("comparison race date mismatch")
-        snapshot = replace(snapshot, comparison_race_day=comparison.race_day, comparison_win5=comparison.win5)
+        snapshot = replace(snapshot, comparison_race_day=comparison.race_day, comparison_win5=comparison.win5, comparison_explanations=comparison.prediction_explanations)
     # Detect changes that occurred while the display snapshot was assembled.
     audit_local_race_day(selected.parent)
     return snapshot

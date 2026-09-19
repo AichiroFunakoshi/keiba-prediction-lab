@@ -60,3 +60,11 @@ class PredictionProfileTest(unittest.TestCase):
             self.assertIsNotNone(state.comparison_race_day)
             self.assertEqual(latest_audited_race_day_manifest(root),output/'race-day.json')
             self.assertEqual(receipt['comparison']['market_weight'],.95)
+            p.write_text(json.dumps({**payload,'market_weight':0,'comparison_profile':comparison.name}))
+            independent=root/'independent-with-market-comparison'
+            with patch('keiba_prediction_lab.market_blend._load_cards',return_value=odds):
+                predict_profile_day(p,history,plan,snap,independent,frozen_at=datetime.fromisoformat('2026-02-01T10:05:00+09:00'))
+            state=load_audited_race_day_snapshot(independent/'race-day.json')
+            self.assertIsNotNone(state.comparison_race_day)
+            self.assertIsNotNone(state.prediction_explanations)
+            self.assertFalse((independent/'market-blend.json').exists())
