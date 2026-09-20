@@ -284,3 +284,65 @@ td.probability { color: #1f6a45; font-weight: 750; font-variant-numeric: tabular
 .market-status { margin: 12px 28px; color: #526157; font-size: 12px; }
 .ledger-winner { flex-wrap: wrap; }
 .ledger-ticket { gap: 4px; }
+
+/* Keep the race overview within the desktop viewport, including odds and WIN5. */
+.active-profile { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: relative; }
+.profile-headline { display: flex; align-items: center; gap: 16px; }
+.profile-headline button { cursor: pointer; padding: 4px 10px; border: 1px solid #759a80; border-radius: 5px; background: #fff; color: #254d34; }
+.profile-details summary { cursor: pointer; white-space: nowrap; }
+.profile-explanation { position: absolute; z-index: 5; top: 100%; right: 0; width: min(760px, 90vw); padding: 12px 18px; border: 1px solid #adc5b4; border-radius: 8px; background: #f0f7f1; box-shadow: 0 6px 20px #123d2b25; }
+.ledger-selections { display: flex; align-items: center; gap: 12px; }
+.ledger-wide { white-space: nowrap; font-size: 11px; }
+@media (min-width: 1051px) and (min-height: 740px) {
+  body.overview-mode { height: 100vh; height: 100dvh; display: grid; grid-template-rows: 48px auto auto minmax(0, 1fr); }
+  .overview-mode .topbar { height: 48px; gap: 18px; padding: 0 18px; }
+  .overview-mode .brand { font-size: 22px; }
+  .overview-mode .race-title { font-size: 20px; }
+  .overview-mode .audit-badge { font-size: 12px; padding: 5px 9px; }
+  .overview-mode .topbar time, .overview-mode .topbar button { font-size: 14px; }
+  .overview-mode .market-status { margin: 4px 16px; font-size: 11px; line-height: 16px; }
+  .overview-mode .active-profile { margin: 2px 14px 4px; padding: 5px 12px; border-radius: 6px; font-size: 12px; }
+  .overview-mode .dashboard { min-height: 0; padding: 4px 14px 6px; display: flex; flex-direction: column; gap: 5px; }
+  .overview-mode .dashboard-toolbar { flex: 0 0 42px; min-height: 0; grid-template-columns: 275px 1fr; }
+  .overview-mode .date-block, .overview-mode .venue-picker { display: flex; align-items: center; gap: 12px; padding: 0 12px 0 0; }
+  .overview-mode .venue-picker { padding-left: 16px; }
+  .overview-mode .date-block > span, .overview-mode .venue-picker > span { margin: 0; font-size: 11px; white-space: nowrap; }
+  .overview-mode .date-block strong { font-size: 17px; white-space: nowrap; }
+  .overview-mode .venue-tab { padding: 5px 18px; }
+  .overview-mode .race-ledger { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  .overview-mode .race-rows { flex: 1; min-height: 0; display: grid; grid-template-rows: repeat(var(--race-count, 12), minmax(0, 1fr)); }
+  .overview-mode .ledger-header, .overview-mode .ledger-row { grid-template-columns: 44px 70px minmax(240px, 1fr) 110px minmax(420px, 1.35fr) 72px; }
+  .overview-mode .ledger-header { flex: 0 0 24px; min-height: 0; font-size: 11px; }
+  .overview-mode .ledger-row { min-height: 0; padding: 0; font-size: 13px; }
+  .overview-mode .ledger-header span, .overview-mode .ledger-row > * { padding: 0 8px; }
+  .overview-mode .ledger-winner { gap: 7px; display: grid; grid-template-columns: 27px minmax(0, 1fr); }
+  .overview-mode .ledger-winner .winner-mark { grid-row: span 2; min-width: 27px; padding: 3px; }
+  .overview-mode .ledger-winner .odds-badge { grid-column: 2; }
+  .overview-mode .ledger-winner strong { align-self: end; }
+  .overview-mode .ledger-winner { row-gap: 0; }
+  .overview-mode .ledger-probability { font-size: 16px; }
+  .overview-mode .ledger-probability-wrap small { font-size: 9px; }
+  .overview-mode .ledger-ticket { justify-content: space-between; flex: 1; gap: 4px; }
+  .overview-mode .number-with-odds { gap: 0; }
+  .overview-mode .compact-number { min-width: 28px; padding: 1px 6px; font-size: 14px; line-height: 17px; }
+  .overview-mode .compact-arrow { font-size: 16px; }
+  .overview-mode .odds-badge { font-size: 10px; line-height: 13px; }
+  .overview-mode .ledger-wide { font-size: 10px; }
+  .overview-mode .detail-link { font-size: 12px; }
+  .overview-mode .dashboard-win5 { flex: 0 0 auto; margin: 0; padding: 5px 12px; }
+  .overview-mode .dashboard-win5 h2 { font-size: 14px; }
+  .overview-mode .dashboard-win5 .win5-legs { margin-top: 3px; }
+  .overview-mode .dashboard-win5 .win5-leg { padding: 2px 8px; }
+  .overview-mode .dashboard-win5 .win5-leg strong { font-size: 12px; margin: 0; }
+  .overview-mode .dashboard-win5 .win5-leg b { font-size: 13px; margin-top: 0; }
+  .overview-mode .dashboard-win5 .win5-leg span, .overview-mode .dashboard-win5 .win5-leg small { font-size: 9px; }
+  .overview-mode .dashboard-win5 .winner-mark { min-width: 22px; padding: 1px 4px; }
+  .overview-mode .dashboard-disclaimer { margin: 0; font-size: 10px; line-height: 14px; }
+}
+@media (min-width: 1051px) and (min-height: 740px) {
+  .overview-mode .dashboard-win5 .win5-summary { padding: 3px 10px; margin: 0; }
+  .overview-mode .dashboard-win5 .win5-summary p { font-size: 10px; line-height: 14px; margin: 0; }
+  .overview-mode .dashboard-win5 .win5-summary strong { font-size: 22px; margin-top: 0; }
+  .overview-mode .dashboard-win5 .section-heading p { font-size: 10px; }
+  .overview-mode .detail-link { white-space: nowrap; }
+}
