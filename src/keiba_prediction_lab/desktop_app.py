@@ -443,6 +443,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                 snapshot = load_audited_race_day_snapshot(
                     args.race_day_manifest,
+                    runner_display_search_root=repository_local_directory(),
                     walk_forward_report=args.walk_forward_report,
                     win5_forecast=args.win5_forecast,
                     market_blend_forecast=(args.race_day_manifest.parent / "market-blend.json"
