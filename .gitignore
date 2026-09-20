@@ -20,3 +20,7 @@ outputs/
 models/
 artifacts/
 reports/
+
+# Local browser inspection can contain private race data.
+.playwright-cli/
+output/playwright/

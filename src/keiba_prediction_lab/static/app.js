@@ -225,6 +225,7 @@ function compactTicket(selection, target, displayById = new Map()) {
 }
 
 function showDetail(prediction, runnerDisplay = []) {
+  document.body.classList.remove("overview-mode");
   byId("dashboard").hidden = true;
   byId("detail-app").hidden = false;
   byId("back-overview").hidden = !currentState?.race_day;
@@ -242,6 +243,7 @@ function renderVenue(raceDay, venueIndex) {
     button.tabIndex = index === venueIndex ? 0 : -1;
   });
   const rows = byId("race-rows");
+  rows.style.setProperty("--race-count", venue.races.length);
   rows.replaceChildren();
   venue.races.forEach((race) => {
     const prediction = race.prediction;
@@ -275,17 +277,16 @@ function renderVenue(raceDay, venueIndex) {
     row.append(probabilityCell);
     const ticket = node("span", "compact-ticket ledger-ticket");
     compactTicket(prediction.actual.selection, ticket, displayById);
-    const ticketCell = node("span", "");
+    const ticketCell = node("span", "ledger-selections");
     ticketCell.append(ticket);
     const wide = prediction.actual.selection.slice(0, 2).map(
       (id) => displayById.get(id)?.horse_number ?? id
     );
-    const wideLabel = node("small", "", `ワイド参考：${wide.join("－")}`);
-    wideLabel.style.display = "block";
+    const wideLabel = node("small", "ledger-wide", `ワイド ${wide.join("－")}`);
     wideLabel.title = "三連単予想の1・2位を組み合わせた参考候補。ワイド配当に基づく採算判定はしていません。";
     ticketCell.append(wideLabel);
     row.append(ticketCell);
-    const detail = node("span", "detail-link", "詳細を見る");
+    const detail = node("span", "detail-link", "詳細");
     row.append(detail);
     row.addEventListener("click", () => {
       showDetail(prediction, race.runner_display || []);
@@ -295,6 +296,7 @@ function renderVenue(raceDay, venueIndex) {
 }
 
 function renderDashboard(raceDay) {
+  document.body.classList.add("overview-mode");
   byId("detail-app").hidden = true;
   byId("dashboard").hidden = false;
   byId("dashboard-toolbar").hidden = false;
@@ -330,6 +332,7 @@ function renderDashboard(raceDay) {
 }
 
 function renderWin5Only() {
+  document.body.classList.remove("overview-mode");
   byId("detail-app").hidden = true;
   byId("dashboard").hidden = false;
   byId("dashboard-toolbar").hidden = true;
@@ -406,10 +409,15 @@ async function loadState() {
     profileBox.hidden = !profile;
     profileBox.replaceChildren();
     if (profile) {
-      profileBox.append(node("strong", "", profile.market_weight === 0 ? "主表示：独自予測100％（オッズは順位・確率に使いません）" : `予測設定：独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`));
-      profileBox.append(node("p", "", profile.validation_summary));
+      const headline = node("div", "profile-headline");
+      headline.append(node("strong", "", profile.market_weight === 0 ? "独自予測100％・オッズ不使用" : `独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`));
+      profileBox.append(headline);
+      const details = node("details", "profile-details");
+      details.append(node("summary", "", "予測条件・検証結果"));
+      const explanation = node("div", "profile-explanation");
+      explanation.append(node("p", "", profile.validation_summary));
       if (profile.comparison) {
-        profileBox.append(node("p", "", `別表示の市場比較版：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}。${profile.comparison.validation_summary}`));
+        explanation.append(node("p", "", `市場比較版：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}。${profile.comparison.validation_summary}`));
       }
       if (state.comparison_race_day) {
         const toggle = node("button", "", "市場比較版を見る");
@@ -423,10 +431,15 @@ async function loadState() {
           renderDashboard(currentState.race_day);
           renderWin5(currentState.win5, currentState.race_day);
           toggle.textContent = showComparison ? "主表示の予測に戻る" : "市場比較版を見る";
+          headline.firstElementChild.textContent = showComparison
+            ? (profile.comparison ? `市場比較：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}` : "市場比較版")
+            : (profile.market_weight === 0 ? "独自予測100％・オッズ不使用" : `独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`);
         });
-        profileBox.append(toggle);
+        headline.append(toggle);
       }
-      profileBox.append(node("small", "", `設定：${profile.profile_id} ／ 各レースには予測時点の設定を表示`));
+      explanation.append(node("small", "", `設定：${profile.profile_id} ／ 各レースには予測時点の設定を表示`));
+      details.append(explanation);
+      profileBox.append(details);
     }
     byId("context-policy").textContent = state.actual_purchase_policy;
     if (state.race_day) {
