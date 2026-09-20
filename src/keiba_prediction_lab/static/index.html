@@ -38,7 +38,7 @@
     <section id="race-ledger" class="race-ledger" aria-labelledby="race-ledger-title">
       <h1 id="race-ledger-title" class="visually-hidden">全レース予測一覧</h1>
       <div class="ledger-header" aria-hidden="true">
-        <span>R</span><span>発走時刻</span><span>予測1着</span><span>推定1着確率</span><span>正式候補 三連単（1点100円）</span><span>詳細</span>
+        <span>R</span><span>発走時刻</span><span>予測1着</span><span>推定1着確率</span><span>三連複候補（順不同・1点100円）</span><span>詳細</span>
       </div>
       <div id="race-rows" class="race-rows"></div>
     </section>
@@ -76,7 +76,8 @@
     <div class="content">
       <section id="prediction-view">
         <div class="official-ticket" aria-labelledby="official-title">
-          <h1 id="official-title">正式候補 <span>三連単 1点100円</span></h1>
+          <h1 id="official-title">三連複候補 <span>順不同・1点100円</span></h1>
+          <p id="trio-probability"></p>
           <div id="official-selection" class="ticket-numbers"></div>
         </div>
 

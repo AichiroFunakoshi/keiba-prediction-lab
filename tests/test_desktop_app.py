@@ -258,6 +258,19 @@ class DesktopAppTest(unittest.TestCase):
         snapshot = open_window.call_args.args[0]
         self.assertIsNotNone(snapshot.race_day)
 
+    def test_explicit_manifest_launch_passes_local_odds_search_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            demo = create_ui_demo(root / "ui-demo")
+            with (
+                patch("keiba_prediction_lab.desktop_app.repository_local_directory", return_value=root),
+                patch("keiba_prediction_lab.desktop_app.load_audited_race_day_snapshot",
+                      wraps=load_audited_race_day_snapshot) as load_snapshot,
+                patch("keiba_prediction_lab.desktop_app.run_desktop_window"),
+            ):
+                self.assertEqual(main(["--race-day-manifest", str(demo.race_day_manifest)]), 0)
+                self.assertEqual(load_snapshot.call_args.kwargs["runner_display_search_root"], root)
+
     def test_no_argument_cancel_opens_private_demo(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             demo_root = Path(directory) / "private-demo"
