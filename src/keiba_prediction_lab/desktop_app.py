@@ -332,6 +332,8 @@ def load_audited_race_day_snapshot(
                 or identities(comparison.race_day) != identities(snapshot.race_day)):
             raise ValueError("comparison race date mismatch")
         snapshot = replace(snapshot, comparison_race_day=comparison.race_day, comparison_win5=comparison.win5, comparison_explanations=comparison.prediction_explanations)
+    from .trio_selection import load_trio_selection
+    snapshot = replace(snapshot, race_day=load_trio_selection(snapshot.race_day, selected.parent / "trio-selection.json"))
     # Detect changes that occurred while the display snapshot was assembled.
     audit_local_race_day(selected.parent)
     return snapshot

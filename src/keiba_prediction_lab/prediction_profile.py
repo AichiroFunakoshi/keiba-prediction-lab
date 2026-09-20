@@ -42,13 +42,15 @@ class PredictionProfile:
     profile_content: bytes
     comparison_path: Path | None = None
     comparison: "PredictionProfile | None" = None
+    selection_objective: str = "trifecta"
 
     def to_dict(self):
         return dict(profile_id=self.profile_id, model_version=self.model_version,
                     model_weight=1-self.market_weight, market_weight=self.market_weight,
                     activated_at=self.activated_at.isoformat(),
                     validation_summary=self.validation_summary,
-                    comparison=self.comparison.to_dict() if self.comparison else None)
+                    comparison=self.comparison.to_dict() if self.comparison else None,
+                    selection_objective=self.selection_objective)
 
 
 def load_prediction_profile(path, *, allow_comparison=True):
@@ -57,7 +59,10 @@ def load_prediction_profile(path, *, allow_comparison=True):
     payload = json.loads(content, object_pairs_hook=_unique)
     keys = {'schema_version','profile_id','model_path','model_sha256','market_weight',
             'activated_at','validation_path','validation_sha256','validation_summary'}
-    optional = {'comparison_profile'} if isinstance(payload, dict) and 'comparison_profile' in payload else set()
+    optional = set(payload) & {'comparison_profile', 'selection_objective'} if isinstance(payload, dict) else set()
+    objective = payload.get('selection_objective', 'trifecta') if isinstance(payload, dict) else None
+    if objective not in ('trio', 'trifecta'):
+        raise ValueError('unsupported selection objective')
     if not isinstance(payload, dict) or payload.keys() != keys | optional or payload['schema_version'] != '1.0':
         raise ValueError('invalid prediction profile schema')
     for key in keys - {'schema_version','market_weight'}:
@@ -79,14 +84,14 @@ def load_prediction_profile(path, *, allow_comparison=True):
         raise ValueError('profile activation must follow training and calibration')
     comparison_path = None
     comparison = None
-    if optional:
+    if "comparison_profile" in optional:
         if not allow_comparison or not isinstance(payload['comparison_profile'],str) or not payload['comparison_profile'].strip():
             raise ValueError('invalid or nested comparison profile')
         comparison_path = path.parent / payload['comparison_profile']
         comparison = load_prediction_profile(comparison_path, allow_comparison=False)
     return PredictionProfile(payload['profile_id'],model_content,payload['model_sha256'],
                              model.model_version,float(weight),activated,
-                             payload['validation_summary'],content,comparison_path,comparison)
+                             payload['validation_summary'],content,comparison_path,comparison,objective)
 
 
 def predict_profile_day(profile_path, history, plan, market_snapshot, output, *, frozen_at,
@@ -148,6 +153,13 @@ def predict_profile_day(profile_path, history, plan, market_snapshot, output, *,
                 return result
             if input_hashes(staged) != input_hashes(staged/'comparison'):
                 raise ValueError('race inputs changed between primary and comparison')
+        if profile.selection_objective == "trio":
+            from .desktop_app import load_audited_race_day_snapshot
+            from .trio_selection import save_trio_selection
+            view = load_audited_race_day_snapshot(staged/'race-day.json',
+                market_blend_forecast=staged/'market-blend.json' if blend else None,
+                load_comparison=False)
+            save_trio_selection(view.race_day, staged/'trio-selection.json', frozen_at=frozen_at)
         receipt = {**profile.to_dict(),'model_sha256':profile.model_sha256,
                    'profile_sha256':hashlib.sha256(profile.profile_content).hexdigest()}
         (staged/'prediction-profile-receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2))

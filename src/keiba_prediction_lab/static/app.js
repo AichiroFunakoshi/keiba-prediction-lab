@@ -40,11 +40,15 @@ function oddsBadge(display) {
   badge.title = `${dateTime(display?.odds_observed_at)}取得${display?.popularity_source === "odds_order" ? "／単勝オッズ順の参考値・同オッズは同順位" : "／JRA掲載人気順"}`;
   return badge;
 }
+function trioSelection(prediction, displayById) {
+  return [...prediction.trio.selection].sort((a, b) =>
+    (displayById.get(a)?.horse_number ?? 999) - (displayById.get(b)?.horse_number ?? 999) || a.localeCompare(b));
+}
 function renderTicket(prediction, displayById) {
   const selection = byId("official-selection");
   selection.replaceChildren();
-  prediction.actual.selection.forEach((horseId, index) => {
-    if (index > 0) selection.append(node("span", "ticket-arrow", "→"));
+  trioSelection(prediction, displayById).forEach((horseId, index) => {
+    if (index > 0) selection.append(node("span", "ticket-arrow", "－"));
     const display = displayById.get(horseId);
     const number = node(
       "span", display ? `ticket-number frame-${display.frame_number}` : "ticket-number",
@@ -154,6 +158,7 @@ function renderPrediction(prediction, runnerDisplay = []) {
   byId("context-input").textContent = prediction.input_data_version;
   const displayById = runnerDisplayMap(runnerDisplay);
   renderTicket(prediction, displayById);
+  byId("trio-probability").textContent = `推定的中率 ${percent(prediction.trio.probability)} ／ ${prediction.trio.frozen_at ? "発走前固定 " + dateTime(prediction.trio.frozen_at) : "保存予測から算出した参考候補"}`;
   const winner = prediction.runners[0];
   const winnerDisplay = displayById.get(winner.horse_id);
   const winnerNumber = byId("winner-number");
@@ -209,7 +214,7 @@ function renderExplanations(prediction, displayById) {
 function compactTicket(selection, target, displayById = new Map()) {
   target.replaceChildren();
   selection.forEach((horseId, index) => {
-    if (index > 0) target.append(node("span", "compact-arrow", "→"));
+    if (index > 0) target.append(node("span", "compact-arrow", "－"));
     const display = displayById.get(horseId);
     const number = node(
       "span", display ? `compact-number frame-${display.frame_number}` : "compact-number",
@@ -276,15 +281,14 @@ function renderVenue(raceDay, venueIndex) {
     ));
     row.append(probabilityCell);
     const ticket = node("span", "compact-ticket ledger-ticket");
-    compactTicket(prediction.actual.selection, ticket, displayById);
+    compactTicket(trioSelection(prediction, displayById), ticket, displayById);
     const ticketCell = node("span", "ledger-selections");
     ticketCell.append(ticket);
-    const wide = prediction.actual.selection.slice(0, 2).map(
-      (id) => displayById.get(id)?.horse_number ?? id
-    );
-    const wideLabel = node("small", "ledger-wide", `ワイド ${wide.join("－")}`);
-    wideLabel.title = "三連単予想の1・2位を組み合わせた参考候補。ワイド配当に基づく採算判定はしていません。";
-    ticketCell.append(wideLabel);
+    const trioLabel = node("small", "ledger-wide", `推定的中率 ${percent(prediction.trio.probability)}`);
+    trioLabel.title = prediction.trio.frozen_at
+      ? `三連複候補の固定：${dateTime(prediction.trio.frozen_at)}`
+      : "保存済み確率から算出した三連複参考候補。過去の正式購入記録とは別です。";
+    ticketCell.append(trioLabel);
     row.append(ticketCell);
     const detail = node("span", "detail-link", "詳細");
     row.append(detail);
@@ -441,7 +445,7 @@ async function loadState() {
       details.append(explanation);
       profileBox.append(details);
     }
-    byId("context-policy").textContent = state.actual_purchase_policy;
+    byId("context-policy").textContent = "三連複1点100円の候補。順不同。投票機能はありません。";
     if (state.race_day) {
       renderDashboard(state.race_day);
       renderWin5(state.win5, state.race_day);
