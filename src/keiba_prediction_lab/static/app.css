@@ -346,3 +346,7 @@ td.probability { color: #1f6a45; font-weight: 750; font-variant-numeric: tabular
   .overview-mode .dashboard-win5 .section-heading p { font-size: 10px; }
   .overview-mode .detail-link { white-space: nowrap; }
 }
+
+.profile-explanation { max-height: min(70vh, 520px); overflow: auto; }
+.trio-study { margin-top: 12px; }
+.trio-study table { width: 100%; margin: 6px 0; }

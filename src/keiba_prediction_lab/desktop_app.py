@@ -481,6 +481,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             profile_path = profile_root / "active-prediction-profile.json" if profile_root else None
             if profile_path is not None and profile_path.is_file():
                 snapshot = replace(snapshot, active_prediction_profile=load_prediction_profile(profile_path).to_dict())
+        if args.demo_directory is None:
+            from .trio_study import load_trio_study
+            root = repository_local_directory()
+            if root is not None:
+                snapshot = replace(snapshot, trio_study=load_trio_study(root / "trio-research.json"))
         run_desktop_window(snapshot)
     except (
         OSError,
