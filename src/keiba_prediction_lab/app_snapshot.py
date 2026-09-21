@@ -51,6 +51,7 @@ class PredictionAppSnapshot:
     shadow_portfolios: tuple[ShadowPortfolioSnapshot, ...]
     bet_type_candidates: tuple[BetTypeCandidateSnapshot, ...]
     trio_frozen_at: str | None = None
+    direct_trio: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -412,7 +413,7 @@ def _prediction_dict(value: PredictionAppSnapshot | None) -> object:
         return None
     from .trio_selection import trio_candidate
     return {
-        "trio": {**trio_candidate(value), "frozen_at": value.trio_frozen_at},
+        "trio": value.direct_trio or {**trio_candidate(value), "frozen_at": value.trio_frozen_at},
         "race_id": value.race_id,
         "scheduled_at": value.scheduled_at,
         "frozen_at": value.frozen_at,
