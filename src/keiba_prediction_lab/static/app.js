@@ -40,6 +40,17 @@ function oddsBadge(display) {
   badge.title = `${dateTime(display?.odds_observed_at)}取得${display?.popularity_source === "odds_order" ? "／単勝オッズ順の参考値・同オッズは同順位" : "／JRA掲載人気順"}`;
   return badge;
 }
+function displayedLeader(prediction) {
+  const probabilities = prediction.trio.inclusion_probabilities;
+  if (!probabilities) return prediction.runners[0];
+  const horseId = Object.keys(probabilities).sort((a, b) => probabilities[b] - probabilities[a] || a.localeCompare(b))[0];
+  return prediction.runners.find(r => r.horse_id === horseId);
+}
+
+function leaderProbability(prediction, runner) {
+  return prediction.trio.inclusion_probabilities?.[runner.horse_id] ?? runner.win_probability;
+}
+
 function trioSelection(prediction, displayById) {
   return [...prediction.trio.selection].sort((a, b) =>
     (displayById.get(a)?.horse_number ?? 999) - (displayById.get(b)?.horse_number ?? 999) || a.localeCompare(b));
@@ -159,7 +170,7 @@ function renderPrediction(prediction, runnerDisplay = []) {
   const displayById = runnerDisplayMap(runnerDisplay);
   renderTicket(prediction, displayById);
   byId("trio-probability").textContent = `推定的中率 ${percent(prediction.trio.probability)} ／ ${prediction.trio.frozen_at ? "発走前固定 " + dateTime(prediction.trio.frozen_at) : "保存予測から算出した参考候補"}`;
-  const winner = prediction.runners[0];
+  const winner = displayedLeader(prediction);
   const winnerDisplay = displayById.get(winner.horse_id);
   const winnerNumber = byId("winner-number");
   winnerNumber.className = winnerDisplay
@@ -170,7 +181,12 @@ function renderPrediction(prediction, runnerDisplay = []) {
   byId("winner-id").textContent = winnerDisplay?.horse_name || winner.horse_id;
   byId("winner-id").title = winnerDisplay ? `馬ID: ${winner.horse_id}` : "";
   byId("winner-odds").textContent = oddsText(winnerDisplay);
-  byId("winner-probability").textContent = percent(winner.win_probability);
+  byId("winner-probability").textContent = percent(leaderProbability(prediction, winner));
+  if (prediction.trio.policy_version === "conditional-trio-set-v1") {
+    byId("context-model").textContent = `三連複専用モデル（オッズ${percent(prediction.trio.market_weight)}）`;
+    byId("winner-label").textContent = "3着内確率1位の馬";
+    byId("trio-probability").textContent += " ／ 順位表・要因内の勝率は従来モデルの参考情報";
+  }
   renderRanking(prediction, displayById);
   renderShadows(prediction);
   renderExplanations(prediction, displayById);
@@ -247,12 +263,16 @@ function renderVenue(raceDay, venueIndex) {
     button.setAttribute("aria-selected", String(index === venueIndex));
     button.tabIndex = index === venueIndex ? 0 : -1;
   });
+  const direct = venue.races[0]?.prediction.trio.policy_version === "conditional-trio-set-v1";
+  const headers = document.querySelectorAll(".ledger-header span");
+  headers[2].textContent = direct ? "3着内評価1位" : "予測1着";
+  headers[3].textContent = direct ? "推定3着内率" : "推定1着確率";
   const rows = byId("race-rows");
   rows.style.setProperty("--race-count", venue.races.length);
   rows.replaceChildren();
   venue.races.forEach((race) => {
     const prediction = race.prediction;
-    const winner = prediction.runners[0];
+    const winner = displayedLeader(prediction);
     const displayById = runnerDisplayMap(race.runner_display || []);
     const winnerDisplay = displayById.get(winner.horse_id);
     const row = node("button", "ledger-row");
@@ -274,9 +294,9 @@ function renderVenue(raceDay, venueIndex) {
     winnerCell.append(oddsBadge(winnerDisplay));
     row.append(winnerCell);
     const probabilityCell = node("span", "ledger-probability-wrap");
-    probabilityCell.append(node("b", "ledger-probability", percent(winner.win_probability)));
+    probabilityCell.append(node("b", "ledger-probability", percent(leaderProbability(prediction, winner))));
     probabilityCell.append(node(
-      "small", "", prediction.model_version.includes("market-log-pool")
+      "small", "", direct ? "三連複専用モデル" : prediction.model_version.includes("market-log-pool")
         ? marketLabel(prediction.model_version) : "独立予測"
     ));
     row.append(probabilityCell);
@@ -409,22 +429,26 @@ async function loadState() {
     const observed = (state.race_day?.venues || []).flatMap(v => v.races.flatMap(r => (r.runner_display || []).map(h => h.odds_observed_at))).filter(Boolean).sort();
     byId("market-status").textContent = observed.length ? `表示用オッズ：${dateTime(observed[observed.length-1])}取得。人気はJRA掲載値、「相当」は単勝順の参考値。予測計算とは別の情報です（自動更新なし）。` : "表示用オッズは未取得です。";
     const profileBox = byId("active-profile");
+    const directTrio = state.race_day?.venues[0]?.races[0]?.prediction.trio;
+    const direct = directTrio?.policy_version === "conditional-trio-set-v1";
+    const primaryLabel = direct ? "新・三連複専用モデル100％（オッズ不使用）" : null;
     const profile = state.active_prediction_profile;
     profileBox.hidden = !profile;
     profileBox.replaceChildren();
     if (profile) {
       const headline = node("div", "profile-headline");
-      headline.append(node("strong", "", profile.market_weight === 0 ? "独自予測100％・オッズ不使用" : `独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`));
+      headline.append(node("strong", "", primaryLabel || (profile.market_weight === 0 ? "独自予測100％・オッズ不使用" : `独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`)));
       profileBox.append(headline);
       const details = node("details", "profile-details");
       details.append(node("summary", "", "予測条件・検証結果"));
       const explanation = node("div", "profile-explanation");
+      if (direct) explanation.append(node("p", "", directTrio.note));
       explanation.append(node("p", "", profile.validation_summary));
-      if (profile.comparison) {
+      if (profile.comparison && !direct) {
         explanation.append(node("p", "", `市場比較版：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}。${profile.comparison.validation_summary}`));
       }
       if (state.comparison_race_day) {
-        const toggle = node("button", "", "市場比較版を見る");
+        const toggle = node("button", "", direct ? "新モデル＋オッズ20％を見る" : "市場比較版を見る");
         let showComparison = false;
         toggle.addEventListener("click", () => {
           showComparison = !showComparison;
@@ -434,14 +458,14 @@ async function loadState() {
             prediction_explanations: showComparison ? state.comparison_explanations : state.prediction_explanations};
           renderDashboard(currentState.race_day);
           renderWin5(currentState.win5, currentState.race_day);
-          toggle.textContent = showComparison ? "主表示の予測に戻る" : "市場比較版を見る";
-          headline.firstElementChild.textContent = showComparison
+          toggle.textContent = showComparison ? "主表示の予測に戻る" : (direct ? "新モデル＋オッズ20％を見る" : "市場比較版を見る");
+          headline.firstElementChild.textContent = direct ? (showComparison ? "新・三連複モデル80％ ＋ オッズ20％" : primaryLabel) : showComparison
             ? (profile.comparison ? `市場比較：独自モデル${percent(profile.comparison.model_weight)} ＋ オッズ${percent(profile.comparison.market_weight)}` : "市場比較版")
             : (profile.market_weight === 0 ? "独自予測100％・オッズ不使用" : `独自モデル${percent(profile.model_weight)} ＋ オッズ${percent(profile.market_weight)}`);
         });
         headline.append(toggle);
       }
-      if (profile.trio_shadow_enabled) explanation.append(node("p", "", "次回は三連複専用モデルのオッズ0％版・20％版も比較用に同時計算します。"));
+      if (profile.trio_shadow_enabled && !direct) explanation.append(node("p", "", "次回は三連複専用モデルのオッズ0％版・20％版も比較用に同時計算します。"));
       explanation.append(node("small", "", `設定：${profile.profile_id} ／ 各レースには予測時点の設定を表示`));
       details.append(explanation);
       if (state.trio_study) {
