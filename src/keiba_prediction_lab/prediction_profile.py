@@ -43,6 +43,8 @@ class PredictionProfile:
     comparison_path: Path | None = None
     comparison: "PredictionProfile | None" = None
     selection_objective: str = "trifecta"
+    trio_shadow_path: Path | None = None
+    trio_shadow_sha256: str | None = None
 
     def to_dict(self):
         return dict(profile_id=self.profile_id, model_version=self.model_version,
@@ -50,7 +52,8 @@ class PredictionProfile:
                     activated_at=self.activated_at.isoformat(),
                     validation_summary=self.validation_summary,
                     comparison=self.comparison.to_dict() if self.comparison else None,
-                    selection_objective=self.selection_objective)
+                    selection_objective=self.selection_objective,
+                    trio_shadow_enabled=self.trio_shadow_path is not None)
 
 
 def load_prediction_profile(path, *, allow_comparison=True):
@@ -59,7 +62,7 @@ def load_prediction_profile(path, *, allow_comparison=True):
     payload = json.loads(content, object_pairs_hook=_unique)
     keys = {'schema_version','profile_id','model_path','model_sha256','market_weight',
             'activated_at','validation_path','validation_sha256','validation_summary'}
-    optional = set(payload) & {'comparison_profile', 'selection_objective'} if isinstance(payload, dict) else set()
+    optional = set(payload) & {'comparison_profile', 'selection_objective', 'trio_shadow_model', 'trio_shadow_sha256'} if isinstance(payload, dict) else set()
     objective = payload.get('selection_objective', 'trifecta') if isinstance(payload, dict) else None
     if objective not in ('trio', 'trifecta'):
         raise ValueError('unsupported selection objective')
@@ -89,9 +92,23 @@ def load_prediction_profile(path, *, allow_comparison=True):
             raise ValueError('invalid or nested comparison profile')
         comparison_path = path.parent / payload['comparison_profile']
         comparison = load_prediction_profile(comparison_path, allow_comparison=False)
+    trio_path = None
+    trio_hash = None
+    if optional & {'trio_shadow_model', 'trio_shadow_sha256'}:
+        if not {'trio_shadow_model', 'trio_shadow_sha256'} <= optional:
+            raise ValueError('trio shadow model and hash are required together')
+        from .trio_model import load_model
+        trio_path = path.parent / payload['trio_shadow_model']
+        trio_hash = payload['trio_shadow_sha256']
+        content_hash = hashlib.sha256(trio_path.read_bytes()).hexdigest()
+        if content_hash != trio_hash:
+            raise ValueError('trio shadow model hash mismatch')
+        trio_model = load_model(trio_path)
+        if activated <= (trio_model.calibrated_through or trio_model.trained_through):
+            raise ValueError('trio model must predate profile activation')
     return PredictionProfile(payload['profile_id'],model_content,payload['model_sha256'],
                              model.model_version,float(weight),activated,
-                             payload['validation_summary'],content,comparison_path,comparison,objective)
+                             payload['validation_summary'],content,comparison_path,comparison,objective,trio_path,trio_hash)
 
 
 def predict_profile_day(profile_path, history, plan, market_snapshot, output, *, frozen_at,
@@ -160,6 +177,14 @@ def predict_profile_day(profile_path, history, plan, market_snapshot, output, *,
                 market_blend_forecast=staged/'market-blend.json' if blend else None,
                 load_comparison=False)
             save_trio_selection(view.race_day, staged/'trio-selection.json', frozen_at=frozen_at)
+        if profile.trio_shadow_path is not None:
+            from .trio_shadow import save_shadow_day
+            if hashlib.sha256(profile.trio_shadow_path.read_bytes()).hexdigest() != profile.trio_shadow_sha256:
+                raise ValueError('trio shadow model changed after profile load')
+            save_shadow_day(profile.trio_shadow_path, history, plan, market_snapshot,
+                            staged/'trio-model-shadow.json', frozen_at=frozen_at)
+            if hashlib.sha256(profile.trio_shadow_path.read_bytes()).hexdigest() != profile.trio_shadow_sha256:
+                raise ValueError('trio shadow model changed during generation')
         receipt = {**profile.to_dict(),'model_sha256':profile.model_sha256,
                    'profile_sha256':hashlib.sha256(profile.profile_content).hexdigest()}
         (staged/'prediction-profile-receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2))

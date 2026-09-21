@@ -131,6 +131,7 @@ class ReadOnlyAppSnapshot:
     comparison_win5: Win5AppSnapshot | None = None
     prediction_explanations: dict | None = None
     comparison_explanations: dict | None = None
+    trio_study: dict | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -150,6 +151,7 @@ class ReadOnlyAppSnapshot:
             "win5": _win5_dict(self.win5),
             "race_day": _race_day_dict(self.race_day),
             "active_prediction_profile": self.active_prediction_profile,
+            "trio_study": self.trio_study,
             "comparison_race_day": _race_day_dict(self.comparison_race_day),
             "comparison_win5": _win5_dict(self.comparison_win5),
             "prediction_explanations": self.prediction_explanations,

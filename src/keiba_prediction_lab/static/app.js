@@ -441,8 +441,25 @@ async function loadState() {
         });
         headline.append(toggle);
       }
+      if (profile.trio_shadow_enabled) explanation.append(node("p", "", "次回は三連複専用モデルのオッズ0％版・20％版も比較用に同時計算します。"));
       explanation.append(node("small", "", `設定：${profile.profile_id} ／ 各レースには予測時点の設定を表示`));
       details.append(explanation);
+      if (state.trio_study) {
+        const study = node("section", "trio-study");
+        study.append(node("strong", "", "三連複専用モデルの開発検証"));
+        const table = node("table", "");
+        const header = node("tr", "");
+        ["方式", "三連複的中", "確率誤差（小さいほど良い）"].forEach(t => header.append(node("th", "", t)));
+        table.append(header);
+        [["winner_v5", "現行の勝率方式"], ["trio_set", "新しい三連複学習"]].forEach(([key, label]) => {
+          const score = state.trio_study.summary[key];
+          const row = node("tr", "");
+          [label, `${score.hits} / ${score.races}（${percent(score.accuracy)}）`, score.log_loss.toFixed(4)].forEach(t => row.append(node("td", "", t)));
+          table.append(row);
+        });
+        study.append(table, node("small", "", state.trio_study.note));
+        details.append(study);
+      }
       profileBox.append(details);
     }
     byId("context-policy").textContent = "三連複1点100円の候補。順不同。投票機能はありません。";
