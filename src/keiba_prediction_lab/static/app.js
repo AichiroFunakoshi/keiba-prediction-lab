@@ -458,7 +458,7 @@ async function loadState() {
           table.append(row);
         });
         study.append(table, node("small", "", state.trio_study.note));
-        details.append(study);
+        explanation.append(study);
       }
       profileBox.append(details);
     }
